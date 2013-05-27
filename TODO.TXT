@@ -1,0 +1,5 @@
+* Create script to check for duplicates by fingerprint
+* finish processFile()
+* write showHelp()
+* Put on GitHub?
+
