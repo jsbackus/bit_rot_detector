@@ -15,6 +15,8 @@ use strict;
 use warnings;
 use Getopt::Long;
 use DateTime;
+use DateTime::Format::SQLite;
+use File::stat;
 use DBI;
 
 ###########
@@ -52,6 +54,8 @@ my $filesGood = 0;
 my $filesBad = 0;
 my $filesDeleted = 0;
 my $filesAdded = 0;
+my $filesUpdated = 0;
+my $totalFiles = 0;
 
 ########
 ## Subs
@@ -237,7 +241,7 @@ sub openDB {
 		   $LOG_LEVEL_WARNING);
 	$dbResult = $dbh->do("CREATE TABLE '$tableName'(id INT PRIMARY KEY, ".
 			     "Path TEXT, LastModified TEXT, ".
-			     "Fingerprint TEXT)");
+			     "Fingerprint TEXT, Size INT)");
 	if(!defined($dbResult)) {
 	    logMessage("Unable to create table '$tableName': ".$dbh->errstr,
 		       $LOG_LEVEL_ERROR);
@@ -374,25 +378,25 @@ sub processFile {
 	logMessage("Invalid argument to processFile!", $LOG_LEVEL_ERROR);
 	return 0;
     }
-
+    
     logMessage("Processing file '$target'...", $LOG_LEVEL_DEBUG1);
+
+    # Grab file attributes
+    my $fileAttrsRef = stat($target);
+    my $fingerPrint = "";
+    my $modTime;
+    if(!defined($fileAttrsRef)) {
+	logMessage("Unable to stat file '$target'!", $LOG_LEVEL_ERROR);
+	return 0;
+    }
+
+    $totalFiles += 1;
 
     # Find file in database
     my $entryData;
     my $sth = $dbh->prepare( "SELECT * FROM '$tableName' WHERE 'Path'=?");
 
-    if($sth->execute($target)) {
-	# Grab first entry and stuff it into @entryData
-	$entryData = $sth->fetchrow_hashref();
-	logMessage("File '$target' found in database with ID number '".
-		   $entryData{"id"}, $LOG_LEVEL_DEBUG1);
-    } else {
-	logMessage("File '$target' not found in database. Adding...",
-		   $LOG_LEVEL_INFO);
-    }
-
     # Generate fingerprint of file
-    my $fingerPrint;
     if(!$disableFingerprint) {
 	$fingerPrint = `$fingerPrinter $target`;
 	# Strip out space and filename
@@ -406,13 +410,79 @@ sub processFile {
 		   $LOG_LEVEL_DEBUG1);
     }
 
-    # Check against database
-    if(defined($entryData) && 
-       $fingerPrint ne $entryData->{"Fingerprint"}) {
-	logMessage("File '$target' has different fingerprint than database",);
+    if($sth->execute($target)) {
+	# Grab first entry and stuff it into @entryData
+	$entryData = $sth->fetchrow_hashref();
+	logMessage("File '$target' found in database with ID number '".
+		   $entryData{"id"}, $LOG_LEVEL_DEBUG1);
+
+	## Check file against database ##
+	
+	# Check mod time
+	my $dbModTime = DateTime::Format::SQLite->parse_datetime(
+	    $entryData->{"LastModified"});
+	my $fileModTime = DateTime->from_epoch(epoch=>$ref->[9]);
+	if(DateTime->compare($dbModTime, $fileModTime) < 0) {
+	    logMessage("Database entry for file '$target' is out of date.", 
+		       $LOG_LEVEL_INFO);
+	    $newerDate = 1;
+	}
+	
+	if(!$disableFingerprint) {
+	    if($fingerPrint ne $entryData->{"Fingerprint"}) {
+		if($newerDate) {
+		    logMessage("File '$target' fingerprint doesn't match ".
+			       "database.", $LOG_LEVEL_INFO);
+		} else {
+		    logMessage("File '$target' fingerprint doesn't match ".
+			       "database. File may have been damaged!",
+			       $LOG_LEVEL_ERROR);
+		    $filesBad += 1;
+		}
+		$failFingerprint = 1;
+	    } else {
+		$filesGood += 1;
+	    }
+	}
+
+	if($newerDate) {
+	    logMessage("Updating database entry for '$target' (ID=".
+		       $entryData->{"id"}."...", $LOG_LEVEL_INFO);
+
+	    $modTime = genSQLiteModTime($fileAttrsRef);
+	    $sth = $dbh->prepare("UPDATE'$tableName' SET LastModified=?, ".
+				 "Fingerprint=?, Size=? WHERE id=?");
+	    if(!$sth->execute($modTime, $fingerPrint, $fileAttrsRef->[7],
+			      $entryData->{"id"})) {
+		logMessage("Error updating entry for file '$target' in table ".
+			   "'$tableName': ".$dbh->errstr, $LOG_LEVEL_ERROR);
+	    } else {
+		logMessage("Successfully updated '$target' in database.", 
+			   $LOG_LEVEL_DEBUG1);
+		$filesUpdated += 1;
+	    }
+	}
+	
+    } else {
+	logMessage("File '$target' not found in database. Adding...",
+		   $LOG_LEVEL_INFO);
+	
+	$modTime = genSQLiteModTime($fileAttrsRef);
+	
+	$sth = $dbh->prepare("INSERT INTO '$tableName'(Path, LastModified, ".
+			     "Fingerprint, Size) VALUES (?, ?, ?, ?)");
+	if(!$sth->execute($target, $modTime, $fingerPrint, 
+			  $fileAttrsRef->[7])) {
+	    logMessage("Error inserting file '$target' into table ".
+		       "'$tableName': ".$dbh->errstr, $LOG_LEVEL_ERROR);
+	} else {
+	    logMessage("Successfully added '$target' to database.", 
+		       $LOG_LEVEL_DEBUG1);
+	    $filesAdded += 1;
+	}
     }
 
-### TO DO ###
+
 
     1;
 }
@@ -447,6 +517,19 @@ sub handleMissingFiles {
     1;
 }
 
+# Sub to generate a SQLite date from the output of stat()
+sub genSQLiteModTime {
+    my $ref = shift;
+
+    if(!defined($ref) || scalar($ref) < 13) {
+	logMessage("Invalid argument to genSQLiteModTime!", $LOG_LEVEL_ERROR);
+	return "";
+    }
+
+    return DateTime::Format::SQLite->format_datetime(
+	DateTime->from_epoch(epoch=>$ref->[9]));
+}
+
 ########
 ## Main
 ########
@@ -462,7 +545,7 @@ openDB();
 
 # Crawl roots
 for my $root (@rootDirs) {
-    logMessage("Checking $root...", $LOG_LEVEL_INFO);
+    logMessage("Checking '$root'...", $LOG_LEVEL_INFO);
 }
 
 # Close database

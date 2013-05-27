@@ -2,4 +2,7 @@
 * finish processFile()
 * write showHelp()
 * Put on GitHub?
+* Need to add code to fingerprint db
+* code to copy db to backup locations?
+* code/script to compare databases?
 
