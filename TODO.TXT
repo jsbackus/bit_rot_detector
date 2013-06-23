@@ -6,3 +6,7 @@
 * code to copy db to backup locations?
 * code/script to compare databases?
 
+-= Convert to Python =-
+* Look at hashlib for info on generating fingerprints
+  http://docs.python.org/2/library/hashlib.html#module-hashlib
+* Look at os.listdir() for info on getting directory listings.
