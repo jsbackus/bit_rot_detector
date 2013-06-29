@@ -1,0 +1,34 @@
+#!/usr/bin/python
+
+import logging
+
+#############
+# Functions #
+#############
+def setup_logger(quiet_mode, debug_mode):
+    """ Sets up the global logging object.
+    """
+    if quiet_mode:
+        logLevel = logging.WARNING
+    elif debug_mode:
+        logLevel = logging.DEBUG
+    else:
+        logLevel = logging.INFO
+
+    logging.basicConfig(format='[%(asctime)s %(levelname)s] %(message)s', 
+        datefmt='%Y-%m-%d %I:%M:%S',level=logLevel)
+    
+def get_file_info(filename):
+    """ Returns a tuple containing the file name, file size, last access time,
+    last modification time, and the finger print.
+    """
+    logging.info('Processing file \'%s\'', filename)
+
+########
+# Main #
+########
+# Set up the logger
+setup_logger(0,0)
+
+# Test the get_file_info()
+get_file_info('TODO.TXT')
