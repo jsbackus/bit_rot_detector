@@ -1,12 +1,16 @@
 #!/usr/bin/python
 
 import logging
+import os
+from os.path import join
+import stat
+import hashlib
 
 #############
 # Functions #
 #############
 def setup_logger(quiet_mode, debug_mode):
-    """ Sets up the global logging object.
+    """Sets up the global logging object.
     """
     if quiet_mode:
         logLevel = logging.WARNING
@@ -17,18 +21,72 @@ def setup_logger(quiet_mode, debug_mode):
 
     logging.basicConfig(format='[%(asctime)s %(levelname)s] %(message)s', 
         datefmt='%Y-%m-%d %I:%M:%S',level=logLevel)
+
+def read_in_chunks(file_obj, chunk_size=1024*1024):
+    """Generator to read data from the specified file in chunks.
+    Default chunk size is 1M.
+    """
+    while True:
+        data = file_obj.read(chunk_size)
+        if not data:
+            break
+        yield data
+
+def calc_fingerprint(filename):
+    """Returns a string containing the SHA1 fingerprint of this file.
+    """
+    # Create a new SHA1 object and read from the specified file in chunks.
+    result = hashlib.sha1()
+    with open(filename, 'rb') as f:
+        for read_data in read_in_chunks(f):
+            result.update(read_data)
+
+    # Return fingerprint
+    return result.hexdigest()
     
 def get_file_info(filename):
-    """ Returns a tuple containing the file name, file size, last access time,
+    """Returns a tuple containing the file name, file size, last access time,
     last modification time, and the finger print.
     """
-    logging.info('Processing file \'%s\'', filename)
+    # Log the file
+    logging.info('Getting info for file \'%s\'', filename)
+    
+    # Grab filesystem info
+    mode = os.stat(filename)
+
+    # Generate fingerprint
+    fp = calc_fingerprint(filename)
+
+    # Generate and return tuple
+    result = (filename, mode.st_size, mode.st_atime, mode.st_mtime, fp)
+    return result
+
+def process_root(path):
+    """Crawls the specified directory, processing all files that it finds.
+    """
+    for root, dirs, files in os.walk(path):
+        # Log the directory that we are processing
+        logging.info('Processing directory \'%s\'', root)
+        
+        # Process files first
+        for name in files:
+            info = get_file_info(os.path.join(root, name))
+            logging.debug('File info object: %s', info)
+            ## TO DO
+        
+        # Process directories next
+        for names in dirs:
+            # TO DO
+            pass
 
 ########
 # Main #
 ########
-# Set up the logger
-setup_logger(0,0)
 
-# Test the get_file_info()
-get_file_info('TODO.TXT')
+# Process command-line arguments
+
+# Set up the logger
+setup_logger(0,1)
+
+# Process the specified directory trees.
+process_root('.')
