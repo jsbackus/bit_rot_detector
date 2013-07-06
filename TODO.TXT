@@ -13,3 +13,4 @@
 * Definitely look at os.walk()!!
 * Should consider converting code to a class - global namespace doesn't work
   like expected.
+

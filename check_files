@@ -95,7 +95,7 @@ def get_file_info(location, filename):
     file size, last access time, last modification time, and the finger print.
     """
     # Concatenate path and filename
-    path = os.path.join(location, name)
+    path = os.path.join(location, filename)
     # Log the file
     logging.info('Getting info for file \'%s\'', path)
     
@@ -116,22 +116,10 @@ def process_root(path, db_conn):
     
     cursor = db_conn.cursor()
 
-    # Find this path in the database. First strip off any trailing slashes,
-    # though.
-    dirname = os.path.basename(path.rstrip(os.sep))
-    cursor.execute('SELECT Path_ID from ? WHERE Parent_ID=? AND Name=?',
-                   table_names['dirs'], -1, dirname)
-    row = cursor.fetchone()
-    if row == None:
-        cursor.execute('INSERT INTO ? VALUES(?, ?)', table_names['dirs'],
-                       dirname, -1)
-        dir_id = cursor.lastrowid
-        logging.debug('Path \'' + path + '\' not in database. Added with ' +
-                      'ID = ' + dir_id)
-    else:
-        dir_id = row[0]
-        logging.debug('Path \'' + path + '\' found in database with ID = ' +
-                      dir_id)
+    parent_id = -1
+
+##### There's a bug here: Looks like walk is working depth first, which is
+##### screwing up the 'parent id'!
 
     # Walk the filesystem
     for root, dirs, files in os.walk(path):
@@ -142,25 +130,28 @@ def process_root(path, db_conn):
 
         # Search the database for this path by name and parent_id.
         # If it doesn't exist, add it. Hold onto this path's id for later.
-        cursor.execute('SELECT Path_ID from ? WHERE Parent_ID=? AND Name=?',
-                       table_names['dirs'], dir_id, dirname)
+        cursor.execute("SELECT Path_ID from '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?",
+                       (parent_id, dirname))
         row = cursor.fetchone()
         if row == None:
-            cursor.execute('INSERT INTO ? VALUES(?, ?)', table_names['dirs'],
-                           dirname, dir_id)
-            dir_id = cursor.lastrowid
+            cursor.execute("INSERT INTO '" + table_names['dirs'] + 
+                           "'(Name, Parent_ID) VALUES(?, ?)", 
+                           (dirname, str(parent_id)))
+            parent_id = cursor.lastrowid
             logging.debug('Path \'' + root + '\' not in database. Added with ' +
-                          'ID = ' + dir_id)
+                          'ID = ' + str(parent_id))
         else:
-            dir_id = row[0]
+            parent_id = row[0]
             logging.debug('Path \'' + root + '\' found in database with ID = ' +
-                          dir_id)
+                          str(parent_id))
     
         ## Process files
 
         # Fetch the list of all files that have this directory as a parent.
-        cursor.execute('SELECT Name from ? WHERE Parent_ID=?',
-                       table_names['files'], dir_id)
+        logging.debug('parent_id = ' + str(parent_id))
+        cursor.execute("SELECT Name from '" + table_names['files'] + 
+                       "' WHERE Parent_ID=?", (parent_id,))
         files_not_seen = cursor.fetchall()
         
         for name in files:
@@ -172,8 +163,9 @@ def process_root(path, db_conn):
                 logging.debug('Marking file \'' + full_name + '\' as seen.')
                 
                 # Grab entire record from the database
-                cursor.execute('SELECT * from ? WHERE Parent_ID=? and ' +
-                               'Name=?', table_names['files'], dir_id, name)
+                cursor.execute("SELECT * from '" + table_names['files'] + 
+                               "' WHERE Parent_ID=? and " +
+                               "Name=?", (parent_id, name))
                 file_rec = cursor.fetchone()
 
                 # Check current file against one in database
@@ -190,10 +182,11 @@ def process_root(path, db_conn):
                     if file_rec[3] < info[4]:
                         logging.info('File \'' + full_name + '\' is newer than '
                                      + 'database record. Updating...')
-                        cursor.execute('UPDATE ? SET LastModified=?, '+
-                                       'Fingerprint=?, Size=? WHERE File_ID=?',
-                                       table_names['files'], info[4], info[5],
-                                       info[2], file_rec[0])
+                        cursor.execute("UPDATE '" + table_names['files'] + 
+                                       "' SET LastModified=?, " +
+                                       "Fingerprint=?, Size=? WHERE File_ID=?",
+                                       (info[4], info[5],
+                                       info[2], file_rec[0]))
                     else:
                         logging.warning('File \'' + full_name + '\' does not ' +
                                         'match fingerprint in database and is '
@@ -213,12 +206,15 @@ def process_root(path, db_conn):
                     
             except ValueError:
                 # Item not in list - add to database
-                cursor.execute('INSERT INTO ? VALUES(?, ?, ?, ?, ?)', 
-                               table_names['files'], name, dir_id,
-                               info[4], info[5], info[2])
+                cursor.execute("INSERT INTO '" + table_names['files'] + 
+                               "'(Name, Parent_ID, LastModified, Fingerprint," +
+                               " Size) VALUES(?, ?, ?, ?, ?)", 
+                               (name, parent_id,
+                               info[4], info[5], info[2]))
 
                 logging.debug('File \'' + join(root,name) + '\' not in ' +
-                              'database. Added with ID = ' + cursor.lastrowid)
+                              'database. Added with ID = ' + 
+                              str(cursor.lastrowid))
 
         ## TO DO
         logging.warning('Files that no longer exist: %s', files_not_seen)
@@ -227,8 +223,8 @@ def process_root(path, db_conn):
 
         # Fetch the list of all directories that have this directory as a 
         # parent.
-        cursor.execute('SELECT Name from ? WHERE Parent_ID=?',
-                       table_names['dirs'], dir_id)
+        cursor.execute("SELECT Name from '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=?", (parent_id,))
         dirs_not_seen = cursor.fetchall()
         
         # Iterate through the list of directories that currently exist on the
@@ -250,8 +246,8 @@ def open_db(db_url):
     created.
     """
 
-    # Connect to database
-    conn = sqlite3.connect(db_url)
+    # Connect to database, using auto-commit
+    conn = sqlite3.connect(database=db_url, isolation_level=None)
 
     # Look for fingerprints table
     cursor = conn.cursor()
@@ -259,21 +255,23 @@ def open_db(db_url):
     found = {'files': False, 'dirs': False }
     for table in cursor.fetchall():
         logging.debug("Found table '" + table[0] + "'")
-        for fp_table in keys(table_names):
-            if (table[0] == fp_table):
+        for fp_table in table_names:
+            if (table[0] == table_names[fp_table]):
                 logging.debug("Found " + fp_table + " fingerprint table '" + 
                               table[0] + "'.")
                 found[fp_table] = True
-    
+
     # If not found, create
     if not(found['files']):
         cursor.execute("CREATE TABLE '" + table_names['files'] + 
-                       "'(File_ID INT PRIMARY KEY, Name TEXT, Path_ID INT, " +
+                       "'(File_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                       "Name TEXT, Parent_ID INT, " +
                        "LastModified TEXT, Fingerprint TEXT, Size INT)")
         
     if not(found['dirs']):
         cursor.execute("CREATE TABLE '" + table_names['dirs'] + 
-                       "'(Path_ID INT PRIMARY KEY, Name TEXT, Parent_ID INT)")
+                       "'(Path_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                       "Name TEXT, Parent_ID INT)")
         
     return conn
 
