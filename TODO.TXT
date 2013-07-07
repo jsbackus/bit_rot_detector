@@ -13,4 +13,11 @@
 * Definitely look at os.walk()!!
 * Should consider converting code to a class - global namespace doesn't work
   like expected.
-
+* Calculating a fingerprint and looking a file up in the database should be run
+  in parallel via threads.
+* Replace os.walk() with custom code:
+  - Use a list as a stack of tuples containing the path name and the path id.
+  - add and remove from end
+  - Maybe write a generator?
+* Consider using the SyPy table construct instead of database. Use MKVs and 
+  backup disk for comparisons.

@@ -110,45 +110,66 @@ def get_file_info(location, filename):
               fp)
     return result
 
+def get_dir_from_db(cursor, dirname, parent_id):
+    """Searches the database using the specified cursor object for the first
+    record in the directories table with the same name and parent_id. If no
+    record exists, one is added. The Path_ID for this directory is returned.
+    """
+
+    ret_val = -1
+
+    # Search the database for this path by name and parent_id.
+    # If it doesn't exist, add it.
+    cursor.execute("SELECT Path_ID from '" + table_names['dirs'] + 
+                   "' WHERE Parent_ID=? AND Name=?",
+                   (parent_id, dirname))
+    row = cursor.fetchone()
+    if row == None:
+        cursor.execute("INSERT INTO '" + table_names['dirs'] + 
+                       "'(Name, Parent_ID) VALUES(?, ?)", 
+                       (dirname, str(parent_id)))
+        parent_id = cursor.lastrowid
+        logging.debug('Path \'' + root + '\' not in database. Added with ' +
+                      'ID = ' + str(parent_id))
+    else:
+        parent_id = row[0]
+        logging.debug('Path \'' + root + '\' found in database with ID = ' +
+                      str(parent_id))
+
+    # Return Path_ID for this directory
+    return ret_val
+
 def process_root(path, db_conn):
     """Crawls the specified directory, processing all files that it finds.
     """
     
     cursor = db_conn.cursor()
 
-    parent_id = -1
+    dirname = os.path.basename(path.rstrip(os.sep))
+    parent_id = dir_id = get_dir_from_db(cursor, dirname, -1)
+    dir_queue = [(dirname, parent_id)]
 
 ##### There's a bug here: Looks like walk is working depth first, which is
 ##### screwing up the 'parent id'!
-
     # Walk the filesystem
-    for root, dirs, files in os.walk(path):
+    while 0 < len(dir_queue):
+        node = dir_queue.pop()
+
         # Log the directory that we are processing
-        logging.info('Processing directory \'%s\'', root)
+        logging.info('Processing directory \'%s\'', node[0])
 
-        dirname = os.path.basename(root.rstrip(os.sep))
+## This may no longer be necessary since it is handled on original root.
+        dirname = os.path.basename(node[0].rstrip(os.sep))
 
-        # Search the database for this path by name and parent_id.
-        # If it doesn't exist, add it. Hold onto this path's id for later.
-        cursor.execute("SELECT Path_ID from '" + table_names['dirs'] + 
-                       "' WHERE Parent_ID=? AND Name=?",
-                       (parent_id, dirname))
-        row = cursor.fetchone()
-        if row == None:
-            cursor.execute("INSERT INTO '" + table_names['dirs'] + 
-                           "'(Name, Parent_ID) VALUES(?, ?)", 
-                           (dirname, str(parent_id)))
-            parent_id = cursor.lastrowid
-            logging.debug('Path \'' + root + '\' not in database. Added with ' +
-                          'ID = ' + str(parent_id))
-        else:
-            parent_id = row[0]
-            logging.debug('Path \'' + root + '\' found in database with ID = ' +
-                          str(parent_id))
+        # Query the database
+        dir_id = get_dir_from_db(cursor, dirname, node[1])
     
         ## Process files
+### TO DO: REPLACE OS.WALK w/ CUSTOM CODE
 
         # Fetch the list of all files that have this directory as a parent.
+### TO DO: Look at retrieving all records for this object and keeping in memory.
+### Compare runtimes with the 'one at a time' method.
         logging.debug('parent_id = ' + str(parent_id))
         cursor.execute("SELECT Name from '" + table_names['files'] + 
                        "' WHERE Parent_ID=?", (parent_id,))
