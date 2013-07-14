@@ -25,3 +25,5 @@
   Intent is to store meta data for various file types in separate tables (one
   per file type) and use the 'metadata index' as the index into said table.
 * See if there is a way to limit number of chars in text fields.
+* Maybe have a 'roots' table that allows for aliasing? Need to cross w/
+  parent_id field in dirs table.
