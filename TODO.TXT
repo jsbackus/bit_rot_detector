@@ -21,3 +21,7 @@
   - Maybe write a generator?
 * Consider using the SyPy table construct instead of database. Use MKVs and 
   backup disk for comparisons.
+* Add a 'file type' column (type INT) and a 'metadata index' column (type int).
+  Intent is to store meta data for various file types in separate tables (one
+  per file type) and use the 'metadata index' as the index into said table.
+* See if there is a way to limit number of chars in text fields.
