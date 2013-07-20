@@ -1,0 +1,10 @@
+simple_file_integrity_tool
+==========================
+
+simple_file_integrity_tool is a tool designed to crawl a directory tree, 
+calculate fingerprints of all files it finds and compare them to a database
+containing known-good fingerprints. It is intended to be part of a larger
+"file archiving" project in the future, hence the choice of SQLite.
+
+(c) 2013 Jeff Backus
+See LICENSE for information regarding use and distribution.
