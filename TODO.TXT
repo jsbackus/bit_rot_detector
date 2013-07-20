@@ -11,3 +11,19 @@
   http://docs.python.org/2/library/hashlib.html#module-hashlib
 * Look at os.listdir() for info on getting directory listings.
 * Definitely look at os.walk()!!
+* Should consider converting code to a class - global namespace doesn't work
+  like expected.
+* Calculating a fingerprint and looking a file up in the database should be run
+  in parallel via threads.
+* Replace os.walk() with custom code:
+  - Use a list as a stack of tuples containing the path name and the path id.
+  - add and remove from end
+  - Maybe write a generator?
+* Consider using the SyPy table construct instead of database. Use MKVs and 
+  backup disk for comparisons.
+* Add a 'file type' column (type INT) and a 'metadata index' column (type int).
+  Intent is to store meta data for various file types in separate tables (one
+  per file type) and use the 'metadata index' as the index into said table.
+* See if there is a way to limit number of chars in text fields.
+* Maybe have a 'roots' table that allows for aliasing? Need to cross w/
+  parent_id field in dirs table.
