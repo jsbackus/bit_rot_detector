@@ -27,3 +27,7 @@
 * See if there is a way to limit number of chars in text fields.
 * Maybe have a 'roots' table that allows for aliasing? Need to cross w/
   parent_id field in dirs table.
+
+-= Repo =-
+* Need to tidy up TODO list!
+* Write a decent README.
