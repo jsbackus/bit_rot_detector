@@ -11,7 +11,7 @@ import sqlite3
 ###########
 # Globals #
 ###########
-table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs' }
+table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 'roots': 'fp_roots' }
 
 #############
 # Functions #
@@ -90,25 +90,88 @@ def calc_fingerprint(filename):
     # Return fingerprint
     return result.hexdigest()
     
-def get_file_info(location, filename):
-    """Returns a tuple containing the file name, directory it lives in, 
-    file size, last access time, last modification time, and the finger print.
+def process_file(node, filename, mode, cursor):
+    """Processes the specified file.
+    TO DO
+    Returns a tuple that can be used to update stats. 
+    Order: (add, good, updated, bad)
     """
     # Concatenate path and filename
-    path = os.path.join(location, filename)
-    # Log the file
-    logging.info('Getting info for file \'%s\'', path)
-    
-    # Grab filesystem info
-    mode = os.stat(path)
+    path = os.path.join(node[0], filename)
 
+    # Log the file
+    logging.info('Processing file \'%s\'', path)
+    
     # Generate fingerprint
     fp = calc_fingerprint(path)
 
-    # Generate and return tuple
-    result = (location, filename, mode.st_size, mode.st_atime, mode.st_mtime, 
-              fp)
-    return result
+    # Grab entire record from the database
+    # TODO: Do we do this once ala "files not seen"?
+    cursor.execute("SELECT file_ID,LastModified,Fingerprint,Size from '" 
+                   + table_names['files'] + "' WHERE Parent_ID=? and " +
+                   "Name=?", (node[1], name))
+    file_rec = cursor.fetchone()
+
+    # Check current file against one in database
+    if file_rec == None:
+        # File doesn't exist - add
+        cursor.execute("INSERT INTO '" + table_names['files'] + 
+                       "'(Name, Parent_ID, LastModified, " +
+                       "Fingerprint," +
+                       " Size) VALUES(?, ?, ?, ?, ?)", 
+                       (name, node[1], mode.st_mtime, fp, mode.st_size))
+        
+        logging.debug('File \'' + join(root,name) + '\' not in ' +
+                      'database. Added with ID = ' + 
+                      str(cursor.lastrowid))
+        # Return tuple indicating addition
+        return (1,0,0,0)
+    else:
+        # Split out entries of file_rec to local variables to avoid confusion
+        db_id = file_rec[0]
+        db_mtime = file_rec[1]
+        db_fp = file_rec[2]
+        db_size = file_rec[3]
+
+        if db_fp != fp:
+            # Fingerprints don't match...
+            logging.debug('File \'' + full_name + '\' does not match ' +
+                          'fingerprint in database')
+                    
+            # Compare modification times. If this file is newer, 
+            # update database. Otherwise issue a warning.
+            if db_mtime < mode.st_mtime:
+                logging.info('File \'' + full_name + '\' is newer than '
+                             + 'database record. Updating...')
+                cursor.execute("UPDATE '" + table_names['files'] + 
+                               "' SET LastModified=?, " +
+                               "Fingerprint=?, Size=? WHERE " +
+                               "File_ID=?", (mode.mtime, fp, mode.st_size, 
+                                             db_id))
+                # Return tuple indicating update
+                return (0,0,1,0)
+            else:
+                logging.warning('File \'' + full_name + '\' does not ' +
+                                'match fingerprint in database ' +
+                                'and is not newer. File could be damaged!')
+                # Return tuple indicating problem
+                return (0,0,0,1)
+        else:
+            logging.debug('File \'' + full_name + '\' matches ' +
+                          'fingerprint in database')
+            # Double-check size to make sure we aren't fooling 
+            # ourselves.
+            if db_size != mode.st_size:
+                logging.warning('File sizes do not match for ' +
+                                'file \'' + full_name + 
+                                '\'! File could be damaged!')
+                # Return tuple indicating problem
+                return (0,0,0,1)
+            else:
+                logging.debug('File \'' + full_name + 
+                              '\' matches ' + 'file size in database')
+                # Return tuple indicating file ok
+                return (0,1,0,0)
 
 def get_dir_from_db(cursor, dirname, parent_id):
     """Searches the database using the specified cursor object for the first
@@ -139,15 +202,23 @@ def get_dir_from_db(cursor, dirname, parent_id):
     # Return Path_ID for this directory
     return ret_val
 
-def process_root(path, db_conn):
+def process_root(root, db_conn):
     """Crawls the specified directory, processing all files that it finds.
     """
     
     cursor = db_conn.cursor()
 
+    # begin temp
+    path = root
+    # end temp
+
     dirname = os.path.basename(path.rstrip(os.sep))
     parent_id = dir_id = get_dir_from_db(cursor, dirname, -1)
     dir_queue = [(dirname, parent_id)]
+
+    # Order: (added, good, updated, bad)
+    file_stats = (0,0,0,0)
+    dir_stats = (0,0,0,0)
 
 ##### There's a bug here: Looks like walk is working depth first, which is
 ##### screwing up the 'parent id'!
@@ -185,78 +256,29 @@ def process_root(path, db_conn):
         dirs_not_seen = cursor.fetchall()
 
         ## Process directory contents
-        for name in os.listdir(node[0]):
-            # Grab entry type
-            name_stat = os.stat(os.path.join(node[0], name))
+        for entry in os.listdir(node[0]):
+            # Generate full path to entry
+            entry_full_name = os.path.join(node[0], entry)
 
-            if os.stat.S_ISREG(name_stat):
-                info = get_file_info(node[0], name)
-                logging.debug('File info object: %s', info)
-                full_name = join(node[0], name)
+            # Grab entry filesystem stats
+            entry_stat = os.stat(entry_full_name)
+
+            if os.stat.S_ISREG(entry_stat):
+                # Entry is a regular file.
+
+                # Process file and update stats
+                file_stats += process_file(node, entry, entry_stat, cursor)
+
+                # Mark as seen
                 try:
-                    files_not_seen.remove( (name) )
-                    logging.debug('Marking file \'' + full_name + '\' as seen.')
-                
-                # Grab entire record from the database
-                    cursor.execute("SELECT * from '" + table_names['files'] + 
-                                   "' WHERE Parent_ID=? and " +
-                                   "Name=?", (dir_id, name))
-                    file_rec = cursor.fetchone()
-
-                    # Check current file against one in database
-                    if file_rec == None:
-                        logging.error('Error fetching record for file \'' + 
-                                      full_name + '\'!')
-                    elif file_rec[3] != info[6]:
-                        # Fingerprints don't match...
-                        logging.debug('File \'' + full_name + 
-                                      '\' does not match ' +
-                                      'fingerprint in database')
-                    
-                        # Compare modification times. If this file is newer, 
-                        # update database. Otherwise issue a warning.
-                        if file_rec[3] < info[4]:
-                            logging.info('File \'' + full_name + 
-                                         '\' is newer than '
-                                         + 'database record. Updating...')
-                            cursor.execute("UPDATE '" + table_names['files'] + 
-                                           "' SET LastModified=?, " +
-                                           "Fingerprint=?, Size=? WHERE " +
-                                           "File_ID=?",
-                                           (info[4], info[5],
-                                            info[2], file_rec[0]))
-                        else:
-                            logging.warning('File \'' + full_name + 
-                                            '\' does not ' +
-                                            'match fingerprint in database ' +
-                                            'and is not newer. '
-                                            'File could be damaged!')
-                    else:
-                        logging.debug('File \'' + full_name + '\' matches ' +
-                                      'fingerprint in database')
-                        # Double-check size to make sure we aren't fooling 
-                        # ourselves.
-                        if file_rec[5] != info[2]:
-                            logging.warning('File sizes do not match for ' +
-                                        'file \'' + full_name + 
-                                        '\'! File could be damaged!')
-                        else:
-                            logging.debug('File \'' + full_name + 
-                                          '\' matches ' +
-                                          'file size in database')
-                    
+                    files_not_seen.remove( (entry) )
+                    logging.debug('Marking file \'' + entry_full_name + 
+                                  '\' as seen.')
                 except ValueError:
-                    # Item not in list - add to database
-                    cursor.execute("INSERT INTO '" + table_names['files'] + 
-                                   "'(Name, Parent_ID, LastModified, " +
-                                   "Fingerprint," +
-                                   " Size) VALUES(?, ?, ?, ?, ?)", 
-                                   (name, dir_id,
-                                    info[4], info[5], info[2]))
+                    # File not in list
+                    # TO DO
+                    pass
 
-                    logging.debug('File \'' + join(root,name) + '\' not in ' +
-                                  'database. Added with ID = ' + 
-                                  str(cursor.lastrowid))
             elif os.stat.S_ISDIR(name_stat):
                 # For directories, push them onto the stack then try to remove 
                 # them from the list of dirs not seen. If it isn't in the 
@@ -267,10 +289,13 @@ def process_root(path, db_conn):
                     dirs_not_seen.remove( (name) )
                     logging.debug('Marking directory \'' + name + 
                                   '\' as seen.')
+                    
+                    # Update stats
+                    dir_stats += (0, 1, 0, 0)
                 except ValueError:
-                    # Item not in list - will be added to database next pass
-                    pass
-                
+                    # Item not in list - will be added to database next pass,
+                    # but update stats here.
+                    dir_stats += (1, 0, 0, 0)
 
         ## TO DO
         logging.warning('Files that no longer exist: %s', files_not_seen)
@@ -310,6 +335,11 @@ def open_db(db_url):
         cursor.execute("CREATE TABLE '" + table_names['dirs'] + 
                        "'(Path_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
                        "Name TEXT, Parent_ID INT)")
+        
+    if not(found['roots']):
+        cursor.execute("CREATE TABLE '" + table_names['roots'] + 
+                       "'(Root_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                       "Name TEXT)")
         
     return conn
 
