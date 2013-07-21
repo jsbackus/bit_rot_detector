@@ -2,7 +2,7 @@
 
 import logging
 import os
-from os.path import join
+#from os.path import join
 import stat
 import hashlib
 import argparse
@@ -109,7 +109,7 @@ def process_file(node, filename, mode, cursor):
     # TODO: Do we do this once ala "files not seen"?
     cursor.execute("SELECT file_ID,LastModified,Fingerprint,Size from '" 
                    + table_names['files'] + "' WHERE Parent_ID=? and " +
-                   "Name=?", (node[1], name))
+                   "Name=?", (node[1], filename))
     file_rec = cursor.fetchone()
 
     # Check current file against one in database
@@ -119,9 +119,9 @@ def process_file(node, filename, mode, cursor):
                        "'(Name, Parent_ID, LastModified, " +
                        "Fingerprint," +
                        " Size) VALUES(?, ?, ?, ?, ?)", 
-                       (name, node[1], mode.st_mtime, fp, mode.st_size))
+                       (filename, node[1], mode.st_mtime, fp, mode.st_size))
         
-        logging.debug('File \'' + join(root,name) + '\' not in ' +
+        logging.debug('File \'' + path + '\' not in ' +
                       'database. Added with ID = ' + 
                       str(cursor.lastrowid))
         # Return tuple indicating addition
@@ -135,13 +135,13 @@ def process_file(node, filename, mode, cursor):
 
         if db_fp != fp:
             # Fingerprints don't match...
-            logging.debug('File \'' + full_name + '\' does not match ' +
+            logging.debug('File \'' + path + '\' does not match ' +
                           'fingerprint in database')
                     
             # Compare modification times. If this file is newer, 
             # update database. Otherwise issue a warning.
             if db_mtime < mode.st_mtime:
-                logging.info('File \'' + full_name + '\' is newer than '
+                logging.info('File \'' + path + '\' is newer than '
                              + 'database record. Updating...')
                 cursor.execute("UPDATE '" + table_names['files'] + 
                                "' SET LastModified=?, " +
@@ -151,25 +151,25 @@ def process_file(node, filename, mode, cursor):
                 # Return tuple indicating update
                 return (0,0,1,0)
             else:
-                logging.warning('File \'' + full_name + '\' does not ' +
+                logging.warning('File \'' + path + '\' does not ' +
                                 'match fingerprint in database ' +
                                 'and is not newer. File could be damaged!')
                 # Return tuple indicating problem
                 return (0,0,0,1)
         else:
-            logging.debug('File \'' + full_name + '\' matches ' +
+            logging.debug('File \'' + path + '\' matches ' +
                           'fingerprint in database')
             # Double-check size to make sure we aren't fooling 
             # ourselves.
             if db_size != mode.st_size:
                 logging.warning('File sizes do not match for ' +
-                                'file \'' + full_name + 
+                                'file \'' + path + 
                                 '\'! File could be damaged!')
                 # Return tuple indicating problem
                 return (0,0,0,1)
             else:
-                logging.debug('File \'' + full_name + 
-                              '\' matches ' + 'file size in database')
+                logging.debug('File \'' + path + 
+                              '\' matches file size in database')
                 # Return tuple indicating file ok
                 return (0,1,0,0)
 
@@ -191,13 +191,13 @@ def get_dir_from_db(cursor, dirname, parent_id):
         cursor.execute("INSERT INTO '" + table_names['dirs'] + 
                        "'(Name, Parent_ID) VALUES(?, ?)", 
                        (dirname, str(parent_id)))
-        parent_id = cursor.lastrowid
+        ret_val = cursor.lastrowid
         logging.debug('Path \'' + root + '\' not in database. Added with ' +
-                      'ID = ' + str(parent_id))
+                      'ID = ' + str(ret_val))
     else:
-        parent_id = row[0]
+        ret_val = row[0]
         logging.debug('Path \'' + root + '\' found in database with ID = ' +
-                      str(parent_id))
+                      str(ret_val))
 
     # Return Path_ID for this directory
     return ret_val
@@ -263,7 +263,7 @@ def process_root(root, db_conn):
             # Grab entry filesystem stats
             entry_stat = os.stat(entry_full_name)
 
-            if os.stat.S_ISREG(entry_stat):
+            if stat.S_ISREG(entry_stat.st_mode):
                 # Entry is a regular file.
 
                 # Process file and update stats
@@ -279,15 +279,15 @@ def process_root(root, db_conn):
                     # TO DO
                     pass
 
-            elif os.stat.S_ISDIR(name_stat):
+            elif stat.S_ISDIR(entry_stat.st_mode):
                 # For directories, push them onto the stack then try to remove 
                 # them from the list of dirs not seen. If it isn't in the 
                 # database, it will be added next pass.
-                dir_queue.push( (name, dir_id) )
+                dir_queue.append( (entry_full_name, dir_id) )
                 
                 try:
-                    dirs_not_seen.remove( (name) )
-                    logging.debug('Marking directory \'' + name + 
+                    dirs_not_seen.remove( (entry) )
+                    logging.debug('Marking directory \'' + entry_full_name + 
                                   '\' as seen.')
                     
                     # Update stats
@@ -298,9 +298,13 @@ def process_root(root, db_conn):
                     dir_stats += (1, 0, 0, 0)
 
         ## TO DO
-        logging.warning('Files that no longer exist: %s', files_not_seen)
+        if 0 < len(files_not_seen):
+            logging.warning('Files that no longer exist: %s', files_not_seen)
 
-        logging.warning('Directories that no longer exist: %s', dirs_not_seen)
+        if 0 < len(dirs_not_seen):
+            logging.warning('Directories that no longer exist: %s', dirs_not_seen)
+
+        # Print stats!
 
 def open_db(db_url):
     """Function to open the specified SQLite database and return a Connection
@@ -314,7 +318,7 @@ def open_db(db_url):
     # Look for fingerprints table
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    found = {'files': False, 'dirs': False }
+    found = {'files': False, 'dirs': False, 'roots': False }
     for table in cursor.fetchall():
         logging.debug("Found table '" + table[0] + "'")
         for fp_table in table_names:
