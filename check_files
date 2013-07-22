@@ -140,13 +140,13 @@ def process_file(node, filename, mode, cursor):
                     
             # Compare modification times. If this file is newer, 
             # update database. Otherwise issue a warning.
-            if db_mtime < mode.st_mtime:
+            if float(db_mtime) < mode.st_mtime:
                 logging.info('File \'' + path + '\' is newer than '
                              + 'database record. Updating...')
                 cursor.execute("UPDATE '" + table_names['files'] + 
                                "' SET LastModified=?, " +
                                "Fingerprint=?, Size=? WHERE " +
-                               "File_ID=?", (mode.mtime, fp, mode.st_size, 
+                               "File_ID=?", (mode.st_mtime, fp, mode.st_size, 
                                              db_id))
                 # Return tuple indicating update
                 return (0,0,1,0)
@@ -192,8 +192,8 @@ def get_dir_from_db(cursor, dirname, parent_id):
                        "'(Name, Parent_ID) VALUES(?, ?)", 
                        (dirname, str(parent_id)))
         ret_val = cursor.lastrowid
-        logging.debug('Path \'' + root + '\' not in database. Added with ' +
-                      'ID = ' + str(ret_val))
+        logging.debug('Directory \'' + root + '\' not in database. Added ' +
+                      'with ID = ' + str(ret_val))
     else:
         ret_val = row[0]
         logging.debug('Path \'' + root + '\' found in database with ID = ' +
@@ -213,8 +213,9 @@ def process_root(root, db_conn):
     # end temp
 
     dirname = os.path.basename(path.rstrip(os.sep))
-    parent_id = dir_id = get_dir_from_db(cursor, dirname, -1)
-    dir_queue = [(dirname, parent_id)]
+#    parent_id = get_dir_from_db(cursor, dirname, -1)
+#    dir_queue = [(dirname, parent_id)]
+    dir_queue = [(dirname, -1)]
 
     # Order: (added, good, updated, bad)
     file_stats = (0,0,0,0)
@@ -245,6 +246,8 @@ def process_root(root, db_conn):
         # Fetch the list of all files that have this directory as a parent.
 ### TO DO: Look at retrieving all records for this object and keeping in memory.
 ### Compare runtimes with the 'one at a time' method.
+
+## There is a bug here...
         cursor.execute("SELECT Name from '" + table_names['files'] + 
                        "' WHERE Parent_ID=?", (dir_id,))
         files_not_seen = cursor.fetchall()
