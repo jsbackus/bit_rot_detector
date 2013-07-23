@@ -8,6 +8,8 @@ import stat
 import hashlib
 import argparse
 import sqlite3
+import operator
+import time
 
 ###########
 # Globals #
@@ -222,15 +224,6 @@ def process_root(root, db_conn):
     file_stats = (0,0,0,0)
     dir_stats = (0,0,0,0)
 
-##### There's a bug here: Looks like walk is working depth first, which is
-##### screwing up the 'parent id'!
-
-##### This code needs gone over w/ fine tooth comb -> it's crap.
-##### Should consider putting file stuff into separate function. Also, with
-##### custom walk code, already getting file stat object. Should take advantage
-##### of this.
-##### Should look at moving all 'dir_id' to 'parent_id' references.
-
     # Walk the filesystem
     while 0 < len(dir_queue):
         node = dir_queue.pop()
@@ -247,8 +240,6 @@ def process_root(root, db_conn):
         # Fetch the list of all files that have this directory as a parent.
 ### TO DO: Look at retrieving all records for this object and keeping in memory.
 ### Compare runtimes with the 'one at a time' method.
-
-## There is a bug here...
         cursor.execute("SELECT Name from '" + table_names['files'] + 
                        "' WHERE Parent_ID=?", (dir_id,))
         files_not_seen = cursor.fetchall()
@@ -261,7 +252,6 @@ def process_root(root, db_conn):
 
         ## Process directory contents
         for entry in os.listdir(node[0]):
-#            entry = entry.encode('utf8')
             # Generate full path to entry
             entry_full_name = os.path.join(node[0], entry)
 
@@ -272,8 +262,9 @@ def process_root(root, db_conn):
                 # Entry is a regular file.
 
                 # Process file and update stats
-                file_stats += process_file(node[0], dir_id, entry, entry_stat, 
-                                           cursor)
+                file_stats = map(operator.add, file_stats, 
+                                 process_file(node[0], dir_id, entry, 
+                                              entry_stat, cursor))
 
                 # Mark as seen
                 try:
@@ -282,7 +273,7 @@ def process_root(root, db_conn):
                                   '\' as seen.')
                 except ValueError:
                     # File not in list
-                    # TO DO
+                    ## TO DO
                     pass
 
             elif stat.S_ISDIR(entry_stat.st_mode):
@@ -297,11 +288,13 @@ def process_root(root, db_conn):
                                   '\' as seen.')
                     
                     # Update stats
-                    dir_stats += (0, 1, 0, 0)
+                    dir_stats = (dir_stats[0], dir_stats[1] + 1, dir_stats[2], 
+                                 dir_stats[3])
                 except ValueError:
                     # Item not in list - will be added to database next pass,
                     # but update stats here.
-                    dir_stats += (1, 0, 0, 0)
+                    dir_stats = (dir_stats[0] + 1, dir_stats[1], dir_stats[2], 
+                                 dir_stats[3])
 
         ## TO DO
         if 0 < len(files_not_seen):
@@ -313,9 +306,17 @@ def process_root(root, db_conn):
                             node[0], dirs_not_seen)
 
     # Print stats!
+    action_names = ('added', 'good', 'updated', 'BAD or MISSING')
+    logging.info('Finished processing root \'' + root + '\': ')
+    logging.info('    Files:')
+    for idx in range(0,4):
+        logging.info('      %s were %s', file_stats[idx], action_names[idx])
+    logging.info('    Directories:')
+    for idx in range(0,4):
+        logging.info('      %s were %s', dir_stats[idx], action_names[idx])
 
     # Return stats
-    return (file_stats,dir_stats)
+    return (file_stats, dir_stats)
 
 def open_db(db_url):
     """Function to open the specified SQLite database and return a Connection
@@ -362,6 +363,10 @@ def open_db(db_url):
 # Main #
 ########
 
+# Start timer
+cpu_start_time = time.clock()
+real_start_time = time.time()
+
 # Parse command-line arguments
 cmd_args = parse_args()
 
@@ -377,4 +382,5 @@ with open_db(cmd_args.db) as db_conn:
         process_root(root, db_conn)
 
 # Fini!
-logging.info('Finished.')
+logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
+             time.time() - real_start_time, time.clock() - cpu_start_time)
