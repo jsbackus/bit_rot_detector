@@ -315,8 +315,8 @@ def open_db(db_url):
     created.
     """
 
-    # Connect to database, using auto-commit
-    conn = sqlite3.connect(database=db_url, isolation_level=None)
+    # Connect to database
+    conn = sqlite3.connect(database=db_url)
 
     # Look for fingerprints table
     cursor = conn.cursor()
@@ -335,8 +335,7 @@ def open_db(db_url):
         cursor.execute("CREATE TABLE '" + table_names['files'] + 
                        "'(File_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
                        "Name TEXT, Parent_ID INTEGER, " +
-                       "LastModified TEXT, Fingerprint TEXT, Size INTEGER, " +
-                       "File_Meta_Type INTEGER, Meta_ID INTEGER)")
+                       "LastModified TEXT, Fingerprint TEXT, Size INTEGER)")
         
     if not(found['dirs']):
         cursor.execute("CREATE TABLE '" + table_names['dirs'] + 
