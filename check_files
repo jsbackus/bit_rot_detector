@@ -211,11 +211,14 @@ def process_root(root, db_conn):
     
     cursor = db_conn.cursor()
 
+### There's a bug here where it won't process absolute paths..
+
     # begin temp
     path = root
     # end temp
 
-    dirname = os.path.basename(path.rstrip(os.sep))
+#    dirname = os.path.basename(path.rstrip(os.sep))
+    dirname = path.rstrip(os.sep)
 #    parent_id = get_dir_from_db(cursor, dirname, -1)
 #    dir_queue = [(dirname, parent_id)]
     dir_queue = [(dirname, -1)]
@@ -256,45 +259,51 @@ def process_root(root, db_conn):
             entry_full_name = os.path.join(node[0], entry)
 
             # Grab entry filesystem stats
-            entry_stat = os.stat(entry_full_name)
+            try:
+                entry_stat = os.stat(entry_full_name)
 
-            if stat.S_ISREG(entry_stat.st_mode):
-                # Entry is a regular file.
+                if stat.S_ISREG(entry_stat.st_mode):
+                    # Entry is a regular file.
 
-                # Process file and update stats
-                file_stats = map(operator.add, file_stats, 
-                                 process_file(node[0], dir_id, entry, 
-                                              entry_stat, cursor))
+                    # Process file and update stats
+                    file_stats = map(operator.add, file_stats, 
+                                     process_file(node[0], dir_id, entry, 
+                                                  entry_stat, cursor))
 
-                # Mark as seen
-                try:
-                    files_not_seen.remove( (entry,) )
-                    logging.debug('Marking file \'' + entry_full_name + 
-                                  '\' as seen.')
-                except ValueError:
-                    # File not in list
-                    ## TO DO
-                    pass
+                    # Mark as seen
+                    try:
+                        files_not_seen.remove( (entry,) )
+                        logging.debug('Marking file \'' + entry_full_name + 
+                                      '\' as seen.')
+                    except ValueError:
+                        # File not in list
+                        ## TO DO
+                        pass
 
-            elif stat.S_ISDIR(entry_stat.st_mode):
-                # For directories, push them onto the stack then try to remove 
-                # them from the list of dirs not seen. If it isn't in the 
-                # database, it will be added next pass.
-                dir_queue.append( (entry_full_name, dir_id) )
+                elif stat.S_ISDIR(entry_stat.st_mode):
+                    # For directories, push them onto the stack then try to
+                    # remove them from the list of dirs not seen. If it isn't 
+                    # in the database, it will be added next pass.
+                    dir_queue.append( (entry_full_name, dir_id) )
                 
-                try:
-                    dirs_not_seen.remove( (entry,) )
-                    logging.debug('Marking directory \'' + entry_full_name + 
-                                  '\' as seen.')
+                    try:
+                        dirs_not_seen.remove( (entry,) )
+                        logging.debug('Marking directory \'' + entry_full_name +
+                                      '\' as seen.')
                     
-                    # Update stats
-                    dir_stats = (dir_stats[0], dir_stats[1] + 1, dir_stats[2], 
-                                 dir_stats[3])
-                except ValueError:
-                    # Item not in list - will be added to database next pass,
-                    # but update stats here.
-                    dir_stats = (dir_stats[0] + 1, dir_stats[1], dir_stats[2], 
-                                 dir_stats[3])
+                        # Update stats
+                        dir_stats = (dir_stats[0], dir_stats[1] + 1, 
+                                     dir_stats[2], dir_stats[3])
+                    except ValueError:
+                        # Item not in list - will be added to database next 
+                        # pass, but update stats here.
+                        dir_stats = (dir_stats[0] + 1, dir_stats[1], 
+                                     dir_stats[2], dir_stats[3])
+
+            except OSError as e:
+                pass
+                logging.debug("OSError({0}): {1}".format(e.errno, e.strerror) +
+                              ' on file \'' + entry_full_name + '\'')
 
         ## TO DO
         if 0 < len(files_not_seen):
