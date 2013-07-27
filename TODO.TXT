@@ -27,6 +27,12 @@
 * See if there is a way to limit number of chars in text fields.
 * Maybe have a 'roots' table that allows for aliasing? Need to cross w/
   parent_id field in dirs table.
+* Trap CTRL+C and commit to DB
+* Make ParentID an index in both dir and files tables
+* grab all important info on "has seen" and stick into hash by file/dir name
+* put FP calc in own thread
+* put DB in own thread
+* move all DB stuff to own functions (extricate from current functions)
 
 -= Repo =-
 * Need to tidy up TODO list!
