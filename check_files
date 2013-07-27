@@ -14,7 +14,7 @@ import time
 ###########
 # Globals #
 ###########
-table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 'roots': 'fp_roots' }
+table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs' }
 
 #############
 # Functions #
@@ -99,7 +99,6 @@ def process_file(node, filename, mode, file_db_dict, cursor):
     Returns a tuple that can be used to update stats. 
     Order: (added, good, updated, bad)
     """
-    logging.debug("DB: %s", file_db_dict)
 
     # Concatenate path and filename
     fullname = os.path.join(node[0], filename)
@@ -125,6 +124,10 @@ def process_file(node, filename, mode, file_db_dict, cursor):
         db_mtime = file_db_dict[filename][1]
         db_fp = file_db_dict[filename][2]
         db_size = file_db_dict[filename][3]
+
+        # Remove file from db dict to indicate that we've seen it.
+        del(file_db_dict[filename])
+        logging.debug("Marking file '" + fullname + "' as seen.")
 
         # Check file against database
         if db_fp != fp:
@@ -167,10 +170,6 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                 # Return tuple indicating file ok
                 return (0,1,0,0)
 
-        # Remove file from db dict to indicate that we've seen it.
-        del file_db_dict[filename]
-        logging.debug("Marking file '" + fullname + "' as seen.")
-
     except KeyError:
         # File doesn't exist in database - add
         add_file(filename, fp, mode, node[1], cursor)
@@ -178,28 +177,29 @@ def process_file(node, filename, mode, file_db_dict, cursor):
         # Return tuple indicating addition
         return (1,0,0,0)
 
-def get_root_from_db(cursor, rootname):
+def get_root_from_db(cursor, rootdir):
     """Searches the database using the specified cursor object for the first
     record in the roots table with the same name. If no record exists, one is 
-    added. This root's ID is returned.
+    added. Returns the tuple: (root dir, root id)
     """
 
     ret_val = -1
 
     # Search the database for this root by name. If it doesn't exist, add it.
-    cursor.execute("SELECT Root_ID from '" + table_names['roots'] + 
-                   "' WHERE Name=?", (rootname,))
+    cursor.execute("SELECT Path_ID from '" + table_names['dirs'] + 
+                   "' WHERE Name=? AND Parent_ID=?", (rootdir,-1))
     row = cursor.fetchone()
     if row == None:
-        cursor.execute("INSERT INTO '" + table_names['roots'] + 
-                       "'(Name) VALUES(?)", 
-                       (rootname,))
+        # Doesn't exist - add
+        cursor.execute("INSERT INTO '" + table_names['dirs'] + 
+                       "'(Name,Parent_ID) VALUES(?,?)", 
+                       (rootdir,-1))
         ret_val = cursor.lastrowid
-        logging.debug('Root \'' + rootname + '\' not in database. Added ' +
+        logging.debug('Root \'' + rootdir + '\' not in database. Added ' +
                       'with ID = ' + str(ret_val))
     else:
         ret_val = row[0]
-        logging.debug('Root \'' + rootname + '\' found in database with ID = ' +
+        logging.debug('Root \'' + rootdir + '\' found in database with ID = ' +
                       str(ret_val))
 
     # Return Root_ID for this root
@@ -283,23 +283,20 @@ def add_dir(path, parent_id, cursor):
     logging.debug('Directory \'' + path + '\' added with ID = ' + str(ret_val))
     return ret_val
 
-def process_root(root, db_conn):
+def process_root(rootdir, db_conn):
     """Crawls the specified directory, processing all files that it finds.
     """
     
+    # Get DB cursor object
     cursor = db_conn.cursor()
 
-    # begin temp
-    path = root
+    # Remove any trailing OS separators
+    rootdir = rootdir.rstrip(os.sep)
 
-#    dirname = os.path.basename(path.rstrip(os.sep))
-    dirname = path.rstrip(os.sep)
-    # end temp
-
-    dir_id = get_root_from_db(cursor, dirname)
+    dir_id = get_root_from_db(cursor, rootdir)
 
     # Push root onto queue to start process
-    dir_queue = [(dirname, dir_id)]
+    dir_queue = [(rootdir, dir_id)]
 
     # Order: (added, good, updated, bad)
     file_stats = (0,0,0,0)
@@ -311,9 +308,6 @@ def process_root(root, db_conn):
         
         # Log the directory that we are processing
         logging.info('Processing directory \'%s\'', node[0])
-
-## This may no longer be necessary since it is handled on original root.
-#        dirname = os.path.basename(node[0].rstrip(os.sep))
 
         # Query the database
         db_cpu_time = time.clock()
@@ -377,10 +371,17 @@ def process_root(root, db_conn):
         if 0 < len(dir_db_data['file_entries']):
             logging.warning("Files that no longer exist in '%s': %s", 
                             node[0], dir_db_data['file_entries'].keys())
+            file_stats = (file_stats[0], file_stats[1], file_stats[2], 
+                         file_stats[3] + 1)
 
         if 0 < len(dir_db_data['dir_entries']):
             logging.warning("Dirs that no longer exist in '%s': %s", 
                             node[0], dir_db_data['dir_entries'].keys())
+            dir_stats = (dir_stats[0], dir_stats[1], dir_stats[2], 
+                         dir_stats[3] + 1)
+
+    # Commit
+    db_conn.commit()
 
     # Print stats!
     action_names = ('added', 'good', 'updated', 'BAD or MISSING')
@@ -407,7 +408,7 @@ def open_db(db_url):
     # Look for fingerprints table
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    found = {'files': False, 'dirs': False, 'roots': False }
+    found = {'files': False, 'dirs': False }
     for table in cursor.fetchall():
         logging.debug("Found table '" + table[0] + "'")
         for fp_table in table_names:
@@ -431,12 +432,6 @@ def open_db(db_url):
                        "Name TEXT, Parent_ID INT)")
         cursor.execute("CREATE INDEX dir_parent_idx ON " + table_names['dirs']
                       + "(Parent_ID)")
-        
-        
-    if not(found['roots']):
-        cursor.execute("CREATE TABLE '" + table_names['roots'] + 
-                       "'(Root_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                       "Name TEXT)")
         
     return conn
 
