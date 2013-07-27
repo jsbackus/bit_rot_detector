@@ -93,14 +93,16 @@ def calc_fingerprint(filename):
     # Return fingerprint
     return result.hexdigest()
     
-def process_file(path, parent_id, filename, mode, cursor):
+def process_file(node, filename, mode, file_db_dict, cursor):
     """Processes the specified file.
     TO DO
     Returns a tuple that can be used to update stats. 
     Order: (added, good, updated, bad)
     """
+    logging.debug("DB: %s", file_db_dict)
+
     # Concatenate path and filename
-    fullname = os.path.join(path, filename)
+    fullname = os.path.join(node[0], filename)
 
     # Log the file
     logging.info('Processing file \'%s\'', fullname)
@@ -109,38 +111,22 @@ def process_file(path, parent_id, filename, mode, cursor):
     fp_cpu_time = time.clock()
     fp_real_time = time.time()
     fp = calc_fingerprint(fullname)
-    loggin.debug('File \'%s\' finished in %.4f seconds (%.4f CPU seconds)', 
-                 fullname, time.time() - real_start_time, 
-                 time.clock() - cpu_start_time)
+    logging.debug('File \'%s\' finished in %.4f seconds (%.4f CPU seconds)', 
+                  fullname, time.time() - fp_real_time, 
+                  time.clock() - fp_cpu_time)
 
-    # Grab entire record from the database
-    # TODO: Do we do this once ala "files not seen"?
-    cursor.execute("SELECT file_ID,LastModified,Fingerprint,Size from '" 
-                   + table_names['files'] + "' WHERE Parent_ID=? and " +
-                   "Name=?", (parent_id, filename))
-    file_rec = cursor.fetchone()
-
-    # Check current file against one in database
-    if file_rec == None:
-        # File doesn't exist - add
-        cursor.execute("INSERT INTO '" + table_names['files'] + 
-                       "'(Name, Parent_ID, LastModified, " +
-                       "Fingerprint," +
-                       " Size) VALUES(?, ?, ?, ?, ?)", 
-                       (filename, parent_id, mode.st_mtime, fp, mode.st_size))
-        
-        logging.debug('File \'' + path + '\' not in ' +
-                      'database. Added with ID = ' + 
-                      str(cursor.lastrowid))
-        # Return tuple indicating addition
-        return (1,0,0,0)
-    else:
+    # Attempt to access this file's entry in the DB dict. If we throw an
+    # exception, we'll need to add the file to the database. If no exception
+    # process the file.
+    try:
         # Split out entries of file_rec to local variables to avoid confusion
-        db_id = file_rec[0]
-        db_mtime = file_rec[1]
-        db_fp = file_rec[2]
-        db_size = file_rec[3]
+        logging.debug('Entry: %s', file_db_dict[filename])
+        db_id = file_db_dict[filename][0]
+        db_mtime = file_db_dict[filename][1]
+        db_fp = file_db_dict[filename][2]
+        db_size = file_db_dict[filename][3]
 
+        # Check file against database
         if db_fp != fp:
             # Fingerprints don't match...
             logging.debug('File \'' + fullname + '\' does not match ' +
@@ -151,22 +137,22 @@ def process_file(path, parent_id, filename, mode, cursor):
             if float(db_mtime) < mode.st_mtime:
                 logging.info('File \'' + fullname + '\' is newer than '
                              + 'database record. Updating...')
-                cursor.execute("UPDATE '" + table_names['files'] + 
-                               "' SET LastModified=?, " +
-                               "Fingerprint=?, Size=? WHERE " +
-                               "File_ID=?", (mode.st_mtime, fp, mode.st_size, 
-                                             db_id))
+
+                update_file(db_id, fp, mode, cursor)
+
                 # Return tuple indicating update
                 return (0,0,1,0)
             else:
                 logging.warning('File \'' + fullname + '\' does not ' +
                                 'match fingerprint in database ' +
                                 'and is not newer. File could be damaged!')
+
                 # Return tuple indicating problem
                 return (0,0,0,1)
         else:
             logging.debug('File \'' + fullname + '\' matches ' +
                           'fingerprint in database')
+
             # Double-check size to make sure we aren't fooling 
             # ourselves.
             if db_size != mode.st_size:
@@ -181,83 +167,113 @@ def process_file(path, parent_id, filename, mode, cursor):
                 # Return tuple indicating file ok
                 return (0,1,0,0)
 
+        # Remove file from db dict to indicate that we've seen it.
+        del file_db_dict[filename]
+        logging.debug("Marking file '" + fullname + "' as seen.")
+
+    except KeyError:
+        # File doesn't exist in database - add
+        add_file(filename, fp, mode, node[1], cursor)
+
+        # Return tuple indicating addition
+        return (1,0,0,0)
+
 def get_root_from_db(cursor, rootname):
     """Searches the database using the specified cursor object for the first
     record in the roots table with the same name. If no record exists, one is 
     added. This root's ID is returned.
     """
 
-    ### TO DO!!
     ret_val = -1
 
     # Search the database for this root by name. If it doesn't exist, add it.
     cursor.execute("SELECT Root_ID from '" + table_names['roots'] + 
-                   "' WHERE Name=?", (dirname,))
+                   "' WHERE Name=?", (rootname,))
     row = cursor.fetchone()
     if row == None:
         cursor.execute("INSERT INTO '" + table_names['roots'] + 
                        "'(Name) VALUES(?)", 
-                       (dirname,))
+                       (rootname,))
         ret_val = cursor.lastrowid
-        logging.debug('Root \'' + root + '\' not in database. Added ' +
+        logging.debug('Root \'' + rootname + '\' not in database. Added ' +
                       'with ID = ' + str(ret_val))
     else:
         ret_val = row[0]
-        logging.debug('Root \'' + root + '\' found in database with ID = ' +
+        logging.debug('Root \'' + rootname + '\' found in database with ID = ' +
                       str(ret_val))
 
     # Return Root_ID for this root
     return ret_val
 
-def get_dir_from_db(cursor, dirname, dir_id):
-    """Searches the database using the specified cursor object for the first
-    record in the directories table with the specified Path_ID. If no
-    record exists, one is added. A dict with the following structure is
-    returned:
+def get_dir_items_from_db(cursor, parent_id):
+    """Searches the database using the specified cursor object for all items
+    in the dirs and files tables with the specified Parent_ID.
+    
+    A dict with the following structure is returned:
     * 'dir_entries' = A dict of dir names => (Path_ID) of all dirs in db with
-      this dir as parent.
+      the specified parent.
     * 'file_entries' = A dict of filenames => (File_ID, LastModified, FP, Size)
-      of all files in db with this dir as parent.
+      of all files in db with the specified parent.
     """
 
     ret_val = { 'dir_entries': dict(), 'file_entries': dict() }
 
-    # Search the database for this path by name and parent_id.
-    # If it doesn't exist, add it.
-    cursor.execute("SELECT Path_ID from '" + table_names['dirs'] + 
-                   "' WHERE Parent_ID=? AND Name=?",
-                   (parent_id, dirname))
-    row = cursor.fetchone()
-    if row == None:
-        cursor.execute("INSERT INTO '" + table_names['dirs'] + 
-                       "'(Name, Parent_ID) VALUES(?, ?)", 
-                       (dirname, str(parent_id)))
-        ret_val = cursor.lastrowid
-        logging.debug('Directory \'' + root + '\' not in database. Added ' +
-                      'with ID = ' + str(ret_val))
-    else:
-        ret_val = row[0]
-        logging.debug('Path \'' + root + '\' found in database with ID = ' +
-                      str(ret_val))
-        # Fetch the list of all files that have this directory as a parent.
-### TO DO: Look at retrieving all records for this object and keeping in memory.
-### Compare runtimes with the 'one at a time' method.
-        cursor.execute("SELECT Name from '" + table_names['files'] + 
-                       "' WHERE Parent_ID=?", (dir_id,))
-        files_not_seen = cursor.fetchall()
+    # Search the database for all directories with the specified parent.
+    cursor.execute("SELECT Path_ID, Name from '" + table_names['dirs'] + 
+                   "' WHERE Parent_ID=?", (parent_id,))
 
-        # Fetch the list of all directories that have this directory as a 
-        # parent.
-        cursor.execute("SELECT Name from '" + table_names['dirs'] + 
-                       "' WHERE Parent_ID=?", (dir_id,))
-        dirs_not_seen = cursor.fetchall()
+    for entry in cursor.fetchall():
+        dir_id = entry[0]
+        dir_name = entry[1]
+        logging.debug("Found dir '%s' (ID='%s') with parent '%s'.", 
+                      dir_name, dir_id, parent_id)
+        ret_val['dir_entries'][dir_name] = (dir_id)
 
+    # Search the database for all files with the specified parent.
+    cursor.execute("SELECT File_ID, Name, LastModified, Fingerprint, Size " +
+                   "from '" + table_names['files'] + 
+                   "' WHERE Parent_ID=?", (parent_id,))
 
-    # Return Path_ID for this directory
+    for entry in cursor.fetchall():
+        file_id = entry[0]
+        file_name = entry[1]
+        file_mtime = entry[2]
+        file_fp = entry[3]
+        file_size = entry[4]
+        logging.debug("Found file '%s' (ID='%s') with parent '%s'.", 
+                      file_name, file_id, parent_id)
+        ret_val['file_entries'][file_name] = (file_id, file_mtime, file_fp, 
+                                              file_size)
+
+    # Return entry list
     return ret_val
 
-def add_dir(path, parent_id):
+def add_file(filename, fp, mode, parent_id, cursor):
+    """ Adds the specified file with the specified mode, fingerprint, and
+    parent_id to the 'files' table. Returns the new entry's File_ID.
+    """
+    cursor.execute("INSERT INTO '" + table_names['files'] + 
+                   "'(Name, Parent_ID, LastModified, " +
+                   "Fingerprint," +
+                   " Size) VALUES(?, ?, ?, ?, ?)", 
+                   (filename, parent_id, mode.st_mtime, fp, mode.st_size))
+    ret_val = cursor.lastrowid
+    logging.debug("File '%s' with parent %s' added to database with ID = %s",
+                  filename, parent_id, str(ret_val))
+
+    return ret_val
+
+def update_file(file_id, fp, mode, cursor):
+    """ Updates the specified file with the specified mode, fingerprint, and
+    parent_id to the 'files' table.
+    """
+    cursor.execute("UPDATE '" + table_names['files'] + 
+                   "' SET LastModified=?, Fingerprint=?, Size=? WHERE " +
+                   "File_ID=?", (mode.st_mtime, fp, mode.st_size, file_id))
+
+def add_dir(path, parent_id, cursor):
     """Adds the specified path with specified parent_id to the 'dirs' table.
+    Returns the new entry's Path_ID.
     """
 
     cursor.execute("INSERT INTO '" + table_names['dirs'] + 
@@ -265,7 +281,7 @@ def add_dir(path, parent_id):
                    (path, str(parent_id)))
     ret_val = cursor.lastrowid
     logging.debug('Directory \'' + path + '\' added with ID = ' + str(ret_val))
-    
+    return ret_val
 
 def process_root(root, db_conn):
     """Crawls the specified directory, processing all files that it finds.
@@ -273,17 +289,17 @@ def process_root(root, db_conn):
     
     cursor = db_conn.cursor()
 
-### There's a bug here where it won't process absolute paths..
-
     # begin temp
     path = root
-    # end temp
 
 #    dirname = os.path.basename(path.rstrip(os.sep))
     dirname = path.rstrip(os.sep)
+    # end temp
+
     dir_id = get_root_from_db(cursor, dirname)
-## May no longer need to track Parent_ID in nodes..
-    dir_queue = [(dirname, dir_id, -1)]
+
+    # Push root onto queue to start process
+    dir_queue = [(dirname, dir_id)]
 
     # Order: (added, good, updated, bad)
     file_stats = (0,0,0,0)
@@ -292,16 +308,21 @@ def process_root(root, db_conn):
     # Walk the filesystem
     while 0 < len(dir_queue):
         node = dir_queue.pop()
-
+        
         # Log the directory that we are processing
         logging.info('Processing directory \'%s\'', node[0])
 
 ## This may no longer be necessary since it is handled on original root.
-        dirname = os.path.basename(node[0].rstrip(os.sep))
+#        dirname = os.path.basename(node[0].rstrip(os.sep))
 
         # Query the database
-        dir_info = get_dir_from_db(cursor, dirname, node[1])
-    
+        db_cpu_time = time.clock()
+        db_real_time = time.time()
+        dir_db_data = get_dir_items_from_db(cursor, node[1])
+        logging.debug("Dir '%s' DB fetched in %.4f seconds (%.4f CPU seconds)",
+                      node[0], time.time() - db_real_time, 
+                      time.clock() - db_cpu_time)
+        
         ## Process directory contents
         for entry in os.listdir(node[0]):
             # Generate full path to entry
@@ -310,58 +331,56 @@ def process_root(root, db_conn):
             # Grab entry filesystem stats
             try:
                 entry_stat = os.stat(entry_full_name)
-
+                
                 if stat.S_ISREG(entry_stat.st_mode):
                     # Entry is a regular file.
 
                     # Process file and update stats
                     file_stats = map(operator.add, file_stats, 
-                                     process_file(node[0], dir_id, entry, 
-                                                  entry_stat, cursor))
-
-                    # Mark as seen
-                    try:
-                        files_not_seen.remove( (entry,) )
-                        logging.debug('Marking file \'' + entry_full_name + 
-                                      '\' as seen.')
-                    except ValueError:
-                        # File not in list
-                        ## TO DO
-                        pass
-
+                                     process_file(node, entry, entry_stat, 
+                                                  dir_db_data['file_entries'],
+                                                  cursor))
+                    
                 elif stat.S_ISDIR(entry_stat.st_mode):
-                    # For directories, push them onto the stack then try to
-                    # remove them from the list of dirs not seen. If it isn't 
-                    # in the database, it will be added next pass.
-                    dir_queue.append( (entry_full_name, dir_id) )
-                
+                    # Attempt to push directory onto stack using data from db.
+                    # If there is an error, assume that the directory is new.
+                    # Add it to the DB then push it onto the stack.
                     try:
-                        dirs_not_seen.remove( (entry,) )
+                        dir_queue.append( (entry_full_name, 
+                                           dir_db_data['dir_entries'][entry]) )
+                
+                        del(dir_db_data['dir_entries'][entry])
                         logging.debug('Marking directory \'' + entry_full_name +
                                       '\' as seen.')
-                    
+                        
                         # Update stats
                         dir_stats = (dir_stats[0], dir_stats[1] + 1, 
                                      dir_stats[2], dir_stats[3])
-                    except ValueError:
-                        # Item not in list - will be added to database next 
-                        # pass, but update stats here.
+                    except KeyError:
+                        # Item not in list. Add then append to queue.
+                        dir_id = add_dir(entry, node[1], cursor)
+                        dir_queue.append( (entry_full_name, dir_id) )
+                        
+                        # Update stats.
                         dir_stats = (dir_stats[0] + 1, dir_stats[1], 
                                      dir_stats[2], dir_stats[3])
 
             except OSError as e:
-                pass
-                logging.debug("OSError({0}): {1}".format(e.errno, e.strerror) +
-                              ' on file \'' + entry_full_name + '\'')
-
+                logging.warning("OSError({0}): {1}".format(e.errno, 
+                                                           e.strerror) +
+                                ' on file \'' + entry_full_name + '\'')
+            except KeyboardInterrupt as e:
+                logging.error("KBInterrupt detected ({0}): {1}".
+                              format(e.errno, e.strerror))
+    
         ## TO DO
-        if 0 < len(files_not_seen):
-            logging.warning('Files that no longer exist in \'%s\': %s', 
-                            node[0], files_not_seen)
+        if 0 < len(dir_db_data['file_entries']):
+            logging.warning("Files that no longer exist in '%s': %s", 
+                            node[0], dir_db_data['file_entries'].keys())
 
-        if 0 < len(dirs_not_seen):
-            logging.warning('Directories that no longer exist in \'%s\': %s', 
-                            node[0], dirs_not_seen)
+        if 0 < len(dir_db_data['dir_entries']):
+            logging.warning("Dirs that no longer exist in '%s': %s", 
+                            node[0], dir_db_data['dir_entries'].keys())
 
     # Print stats!
     action_names = ('added', 'good', 'updated', 'BAD or MISSING')
