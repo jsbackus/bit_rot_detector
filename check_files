@@ -305,7 +305,7 @@ def prune_files(path, file_data, cursor):
                 logging.warning("File '%s' no longer exists in directory '%s'!",
                                 item, path)
 
-    return (0, 0, 0, 0, len(item_data['file_entries']) )
+    return (0, 0, 0, 0, len(file_data) )
 
 def prune_dirs(path, dir_data, cursor):
     """This routine is responsible for iterating over the list of directories in
@@ -328,33 +328,33 @@ def prune_dirs(path, dir_data, cursor):
             dir_queue.append( ( path, item, item_data['dir_entries'][item]) )
             
         # Prune any files
-        ret_val[0] = add_tuple(ret_val[0], prune_files(path, item_data[ \
+        ret_val[0] = add_tuples(ret_val[0], prune_files(path, item_data[ \
                     'file_entries'], cursor))
+        
+        if 0 < len(dir_queue):
+            # Pop the next directory off of the stack
+            node = dir_queue.pop()
 
-        # Pop the next directory off of the stack
-        node = dir_queue.pop()
+            # Update path to refer to this item
+            path = os.path.join(node[0], node[1])
 
-        # Update path to refer to this item
-        path = os.path.join(node[0], node[1])
+            # Grab all entries for this directory from the database
+            item_data = get_dir_items_from_db(cursor, node[2])
 
-        # Grab all entries for this directory from the database
-        item_data = get_dir_items_from_db(cursor, node[2])
+            # Delete this item from the database, if appropriate
+            if cmd_args.prune:
+                cursor.execute("DELETE FROM '" + table_names['dirs'] + 
+                               "' WHERE Path_ID = ?",
+                               (node[2],))
+                logging.info("Subdirectory '%s' pruned from directory '%s'.", 
+                             node[1], node[0])
+            else:
+                logging.warning("Subdirectory '%s' no longer exists in " +
+                                "directory '%s'!", node[1], node[0])
 
-        # Delete this item from the database, if appropriate
-        if cmd_args.prune:
-            cursor.execute("DELETE FROM '" + table_names['dirs'] + 
-                           "' WHERE Path_ID = ?",
-                           (node[2],))
-            logging.info("Subdirectory '%s' pruned from directory '%s'.", 
-                         node[1], node[0])
+            ret_val[1] = add_tuples(ret_val[1], (0, 0, 0, 0, 1))
         else:
-            logging.warning("Subdirectory '%s' no longer exists in " +
-                            "directory '%s'!", node[1], node[0])
-
-        ret_val[1] = add_tuple(ret_val[1], (0, 0, 0, 0, 1))
-
-        # Keep going as long as there are directories to process.
-        done = (0 < len(dir_queue))
+            done = True
 
     return ret_val
 
@@ -451,10 +451,10 @@ def process_root(rootdir, db_conn):
 
             file_stats = add_tuples(file_stats, prune_files(node[0], 
                                                             dir_db_data[ \
-                        'file_entries']), cursor)
-            dir_stats = add_tuples(dir_stats, prune_files(node[0], 
-                                                          dir_db_data[ \
-                        'dir_entries'], cursor))
+                        'file_entries'], cursor))
+            tmp_stats = prune_dirs(node[0], dir_db_data['dir_entries'], cursor)
+            file_stats = add_tuples(file_stats, tmp_stats[0])
+            dir_stats = add_tuples(dir_stats, tmp_stats[1])
 
     except KeyboardInterrupt:
         logging.error("Interrupt detected, aborting crawl and " +
