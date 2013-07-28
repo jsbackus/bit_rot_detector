@@ -315,9 +315,27 @@ def prune_dirs(path, dir_data, cursor):
     Returns a tuple of tuples that contain the updated stats: (files, dirs)
     """
 
+    done = False
+    ret_val = [ (0, 0, 0, 0, 0), (0, 0, 0, 0, 0) ]
+    item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
+    # Build a queue like in process_root of all directories to be pruned.
+    dir_queue = []
 ## TO DO!    
-    if 0 < len(item_data['dir_entries']):
+
+    while not done:
+        # Each round, append any directories in the database dict to the queue.
         for item in item_data['dir_entries'].keys():
+            dir_name = os.path.join(path, item)
+            dir_queue.append( ( dir_name, item_data['dir_entries'][item]) )
+        # Clear dir dict
+        item_data['dir_entries'].clear()
+            
+        # Prune any files
+        ret_val[0] = add_tuple(ret_val[0], prune_files(node
+        # Clear file dict
+        item_data['file_entries'].clear()
+
+    if 0 < len(item_data['dir_entries']):
             if cmd_args.prune:
                 cursor.execute("DELETE FROM '" + table_names['dirs'] + 
                                "' WHERE Path_ID = ?",
@@ -422,9 +440,12 @@ def process_root(rootdir, db_conn):
                                                                e.strerror) +
                                     ' on file \'' + entry_full_name + '\'')
 
-            new_stats = prune_items(node[0], dir_db_data, cursor)
-            file_stats = add_tuples(file_stats, new_stats[0])
-            dir_stats = add_tuples(dir_stats, new_stats[1])
+            file_stats = add_tuples(file_stats, prune_files(node[0], 
+                                                            dir_db_data[ \
+                        'file_entries']), cursor)
+            dir_stats = add_tuples(dir_stats, prune_files(node[0], 
+                                                          dir_db_data[ \
+                        'dir_entries'], cursor))
 
     except KeyboardInterrupt:
         logging.error("Interrupt detected, aborting crawl and " +
