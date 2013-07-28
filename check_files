@@ -318,36 +318,45 @@ def prune_dirs(path, dir_data, cursor):
     done = False
     ret_val = [ (0, 0, 0, 0, 0), (0, 0, 0, 0, 0) ]
     item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
+
     # Build a queue like in process_root of all directories to be pruned.
     dir_queue = []
-## TO DO!    
 
     while not done:
         # Each round, append any directories in the database dict to the queue.
         for item in item_data['dir_entries'].keys():
-            dir_name = os.path.join(path, item)
-            dir_queue.append( ( dir_name, item_data['dir_entries'][item]) )
-        # Clear dir dict
-        item_data['dir_entries'].clear()
+            dir_queue.append( ( path, item, item_data['dir_entries'][item]) )
             
         # Prune any files
-        ret_val[0] = add_tuple(ret_val[0], prune_files(node
-        # Clear file dict
-        item_data['file_entries'].clear()
+        ret_val[0] = add_tuple(ret_val[0], prune_files(path, item_data[ \
+                    'file_entries'], cursor))
 
-    if 0 < len(item_data['dir_entries']):
-            if cmd_args.prune:
-                cursor.execute("DELETE FROM '" + table_names['dirs'] + 
-                               "' WHERE Path_ID = ?",
-                               (item_data['dir_entries'][item],))
-                logging.info("Subdirectory '%s' pruned from directory '%s'.", 
-                             item, path)
-            else:
-                logging.warning("Subdirectory '%s' no longer exists in " +
-                                "directory '%s'!", item, path)
+        # Pop the next directory off of the stack
+        node = dir_queue.pop()
 
-    return ( (0, 0, 0, 0, len(item_data['file_entries']) ), 
-             (0, 0, 0, 0, len(item_data['dir_entries']) ) )
+        # Update path to refer to this item
+        path = os.path.join(node[0], node[1])
+
+        # Grab all entries for this directory from the database
+        item_data = get_dir_items_from_db(cursor, node[2])
+
+        # Delete this item from the database, if appropriate
+        if cmd_args.prune:
+            cursor.execute("DELETE FROM '" + table_names['dirs'] + 
+                           "' WHERE Path_ID = ?",
+                           (node[2],))
+            logging.info("Subdirectory '%s' pruned from directory '%s'.", 
+                         node[1], node[0])
+        else:
+            logging.warning("Subdirectory '%s' no longer exists in " +
+                            "directory '%s'!", node[1], node[0])
+
+        ret_val[1] = add_tuple(ret_val[1], (0, 0, 0, 0, 1))
+
+        # Keep going as long as there are directories to process.
+        done = (0 < len(dir_queue))
+
+    return ret_val
 
 def add_tuples(t1, t2):
     """Properly vector-adds the specified tuples and returns the resulting
