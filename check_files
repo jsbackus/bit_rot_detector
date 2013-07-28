@@ -32,6 +32,9 @@ def parse_args():
                         help='only display warnings and errors')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='display debugging information')
+    parser.add_argument('-p', '--prune', action='store_true',
+                        help='Prunes directories and files from database that' +
+                        ' no longer exist on the filesystem.')
     parser.add_argument('--db', default='check_files.db',
                         help='Database that contains file fingerprint info.')
     parser.add_argument('--dry-run', action='store_true',
@@ -97,7 +100,7 @@ def process_file(node, filename, mode, file_db_dict, cursor):
     """Processes the specified file.
     TO DO
     Returns a tuple that can be used to update stats. 
-    Order: (added, good, updated, bad)
+    Order: (added, good, updated, bad, missing)
     """
 
     # Concatenate path and filename
@@ -144,14 +147,14 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                 update_file(db_id, fp, mode, cursor)
 
                 # Return tuple indicating update
-                return (0,0,1,0)
+                return (0,0,1,0,0)
             else:
                 logging.warning('File \'' + fullname + '\' does not ' +
                                 'match fingerprint in database ' +
                                 'and is not newer. File could be damaged!')
 
                 # Return tuple indicating problem
-                return (0,0,0,1)
+                return (0,0,0,1,0)
         else:
             logging.debug('File \'' + fullname + '\' matches ' +
                           'fingerprint in database')
@@ -163,19 +166,19 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                                 'file \'' + fullname + 
                                 '\'! File could be damaged!')
                 # Return tuple indicating problem
-                return (0,0,0,1)
+                return (0,0,0,1,0)
             else:
                 logging.debug('File \'' + fullname + 
                               '\' matches file size in database')
                 # Return tuple indicating file ok
-                return (0,1,0,0)
+                return (0,1,0,0,0)
 
     except KeyError:
         # File doesn't exist in database - add
         add_file(filename, fp, mode, node[1], cursor)
 
         # Return tuple indicating addition
-        return (1,0,0,0)
+        return (1,0,0,0,0)
 
 def get_root_from_db(cursor, rootdir):
     """Searches the database using the specified cursor object for the first
@@ -283,115 +286,162 @@ def add_dir(path, parent_id, cursor):
     logging.debug('Directory \'' + path + '\' added with ID = ' + str(ret_val))
     return ret_val
 
+def prune_files(path, file_data, cursor):
+    """This routine is responsible for iterating over the list of files in the
+    database but not on the filesystem and either removing them from the 
+    database or simply alerting the user, depending on command-line arguments.
+    Returns a tuple to be added to the files stats tuple.
+    """
+    
+    if 0 < len(file_data):
+        for item in file_data.keys():
+            if cmd_args.prune:
+                cursor.execute("DELETE FROM '" + table_names['files'] + 
+                               "' WHERE File_ID = ?",
+                               (file_data[item][0],))
+                logging.info("File '%s' pruned from directory '%s'.", item, 
+                             path)
+            else:
+                logging.warning("File '%s' no longer exists in directory '%s'!",
+                                item, path)
+
+    return (0, 0, 0, 0, len(item_data['file_entries']) )
+
+def prune_dirs(path, dir_data, cursor):
+    """This routine is responsible for iterating over the list of directories in
+    the database but not on the filesystem and either removing them from the 
+    database or simply alerting the user, depending on command-line arguments.
+    Note that it is necessary to remove subdirectories and files!
+    Returns a tuple of tuples that contain the updated stats: (files, dirs)
+    """
+
+## TO DO!    
+    if 0 < len(item_data['dir_entries']):
+        for item in item_data['dir_entries'].keys():
+            if cmd_args.prune:
+                cursor.execute("DELETE FROM '" + table_names['dirs'] + 
+                               "' WHERE Path_ID = ?",
+                               (item_data['dir_entries'][item],))
+                logging.info("Subdirectory '%s' pruned from directory '%s'.", 
+                             item, path)
+            else:
+                logging.warning("Subdirectory '%s' no longer exists in " +
+                                "directory '%s'!", item, path)
+
+    return ( (0, 0, 0, 0, len(item_data['file_entries']) ), 
+             (0, 0, 0, 0, len(item_data['dir_entries']) ) )
+
+def add_tuples(t1, t2):
+    """Properly vector-adds the specified tuples and returns the resulting
+    tuple.
+    """
+    return map(operator.add, t1, t2)
+
 def process_root(rootdir, db_conn):
     """Crawls the specified directory, processing all files that it finds.
     """
     
     # Get DB cursor object
     cursor = db_conn.cursor()
-
+    
     # Remove any trailing OS separators
     rootdir = rootdir.rstrip(os.sep)
-
+    
     dir_id = get_root_from_db(cursor, rootdir)
 
     # Push root onto queue to start process
     dir_queue = [(rootdir, dir_id)]
 
-    # Order: (added, good, updated, bad)
-    file_stats = (0,0,0,0)
-    dir_stats = (0,0,0,0)
+    # Order: (added, good, updated, bad, missing)
+    file_stats = (0,0,0,0,0)
+    dir_stats = (0,0,0,0,0)
 
-    # Walk the filesystem
-    while 0 < len(dir_queue):
-        node = dir_queue.pop()
-        
-        # Log the directory that we are processing
-        logging.info('Processing directory \'%s\'', node[0])
+    try:
+        # Walk the filesystem
+        while 0 < len(dir_queue):
+            node = dir_queue.pop()
 
-        # Query the database
-        db_cpu_time = time.clock()
-        db_real_time = time.time()
-        dir_db_data = get_dir_items_from_db(cursor, node[1])
-        logging.debug("Dir '%s' DB fetched in %.4f seconds (%.4f CPU seconds)",
-                      node[0], time.time() - db_real_time, 
-                      time.clock() - db_cpu_time)
-        
-        ## Process directory contents
-        for entry in os.listdir(node[0]):
-            # Generate full path to entry
-            entry_full_name = os.path.join(node[0], entry)
+            # Log the directory that we are processing
+            logging.info('Processing directory \'%s\'', node[0])
 
-            # Grab entry filesystem stats
-            try:
-                entry_stat = os.stat(entry_full_name)
-                
-                if stat.S_ISREG(entry_stat.st_mode):
-                    # Entry is a regular file.
+            # Query the database
+            db_cpu_time = time.clock()
+            db_real_time = time.time()
+            dir_db_data = get_dir_items_from_db(cursor, node[1])
+            logging.debug("Dir '%s' DB fetched in %.4f seconds (%.4f CPU " +
+                          "seconds)",
+                          node[0], time.time() - db_real_time, 
+                          time.clock() - db_cpu_time)
 
-                    # Process file and update stats
-                    file_stats = map(operator.add, file_stats, 
-                                     process_file(node, entry, entry_stat, 
-                                                  dir_db_data['file_entries'],
-                                                  cursor))
+            ## Process directory contents
+            for entry in os.listdir(node[0]):
+                # Generate full path to entry
+                entry_full_name = os.path.join(node[0], entry)
+
+                # Grab entry filesystem stats
+                try:
+                    entry_stat = os.stat(entry_full_name)
                     
-                elif stat.S_ISDIR(entry_stat.st_mode):
-                    # Attempt to push directory onto stack using data from db.
-                    # If there is an error, assume that the directory is new.
-                    # Add it to the DB then push it onto the stack.
-                    try:
-                        dir_queue.append( (entry_full_name, 
-                                           dir_db_data['dir_entries'][entry]) )
-                
-                        del(dir_db_data['dir_entries'][entry])
-                        logging.debug('Marking directory \'' + entry_full_name +
-                                      '\' as seen.')
+                    if stat.S_ISREG(entry_stat.st_mode):
+                        # Entry is a regular file.
                         
-                        # Update stats
-                        dir_stats = (dir_stats[0], dir_stats[1] + 1, 
-                                     dir_stats[2], dir_stats[3])
-                    except KeyError:
-                        # Item not in list. Add then append to queue.
-                        dir_id = add_dir(entry, node[1], cursor)
-                        dir_queue.append( (entry_full_name, dir_id) )
+                        # Process file and update stats
+                        file_stats = add_tuples(file_stats, 
+                                                process_file(node, entry, 
+                                                             entry_stat, 
+                                                             dir_db_data[ \
+                                    'file_entries'],
+                                                             cursor))
                         
-                        # Update stats.
-                        dir_stats = (dir_stats[0] + 1, dir_stats[1], 
-                                     dir_stats[2], dir_stats[3])
+                    elif stat.S_ISDIR(entry_stat.st_mode):
+                        # Attempt to push directory onto stack using data from 
+                        # db. If there is an error, assume that the directory is
+                        # new. Add it to the DB then push it onto the stack.
+                        try:
+                            dir_queue.append( (entry_full_name, 
+                                               dir_db_data['dir_entries'] \
+                                                   [entry]) )
+                            
+                            del(dir_db_data['dir_entries'][entry])
+                            logging.debug('Marking directory \'' + 
+                                          entry_full_name +
+                                          '\' as seen.')
+                            
+                            # Update stats
+                            dir_stats = add_tuples(dir_stats, (0,1,0,0,0))
+                        except KeyError:
+                            # Item not in list. Add then append to queue.
+                            dir_id = add_dir(entry, node[1], cursor)
+                            dir_queue.append( (entry_full_name, dir_id) )
 
-            except OSError as e:
-                logging.warning("OSError({0}): {1}".format(e.errno, 
-                                                           e.strerror) +
-                                ' on file \'' + entry_full_name + '\'')
-            except KeyboardInterrupt as e:
-                logging.error("KBInterrupt detected ({0}): {1}".
-                              format(e.errno, e.strerror))
+                            # Update stats.
+                            dir_stats = add_tuples(dir_stats, (1,0,0,0,0))
+
+                except OSError as e:
+                    logging.warning("OSError({0}): {1}".format(e.errno, 
+                                                               e.strerror) +
+                                    ' on file \'' + entry_full_name + '\'')
+
+            new_stats = prune_items(node[0], dir_db_data, cursor)
+            file_stats = add_tuples(file_stats, new_stats[0])
+            dir_stats = add_tuples(dir_stats, new_stats[1])
+
+    except KeyboardInterrupt:
+        logging.error("Interrupt detected, aborting crawl and " +
+                      "committing all changes.")
     
-        ## TO DO
-        if 0 < len(dir_db_data['file_entries']):
-            logging.warning("Files that no longer exist in '%s': %s", 
-                            node[0], dir_db_data['file_entries'].keys())
-            file_stats = (file_stats[0], file_stats[1], file_stats[2], 
-                         file_stats[3] + 1)
-
-        if 0 < len(dir_db_data['dir_entries']):
-            logging.warning("Dirs that no longer exist in '%s': %s", 
-                            node[0], dir_db_data['dir_entries'].keys())
-            dir_stats = (dir_stats[0], dir_stats[1], dir_stats[2], 
-                         dir_stats[3] + 1)
-
     # Commit
     db_conn.commit()
 
     # Print stats!
-    action_names = ('added', 'good', 'updated', 'BAD or MISSING')
+    action_names = ('added', 'good', 'updated', 'BAD', 'MISSING')
     logging.info('Finished processing root \'' + root + '\': ')
     logging.info('    Files:')
-    for idx in range(0,4):
-        logging.info('      %s were %s', file_stats[idx], action_names[idx])
+    for idx in range(0,5):
+        logging.info('      %s: %s', action_names[idx], file_stats[idx])
     logging.info('    Directories:')
-    for idx in range(0,4):
-        logging.info('      %s were %s', dir_stats[idx], action_names[idx])
+    for idx in range(0,5):
+        logging.info('      %s: %s', action_names[idx], dir_stats[idx])
 
     # Return stats
     return (file_stats, dir_stats)
