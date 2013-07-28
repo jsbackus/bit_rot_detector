@@ -40,6 +40,8 @@ def parse_args():
     parser.add_argument('--dry-run', action='store_true',
                         help='prints commands to execute, but don\'t do ' +
                         'anything.')
+    parser.add_argument('--dupes', action='store_true',
+                        help='Scans the database for duplicate files.')
     parser.add_argument('root_dir', nargs='+', 
                         help='Root of a directory tree to scan and check.')
 
@@ -515,6 +517,59 @@ def open_db(db_url):
         
     return conn
 
+def check_duplicates(db_conn):
+    """Scans the database looking for duplicate files by fingerprint. Prints
+    a list of files to STDOUT.
+    """
+
+    # Dict of lists by fingerprint
+    file_hash = dict()
+    
+    # Dict of directories by ID
+    dir_hash = dict()
+
+    # Count of duplicates
+    count = 0
+    
+    # Get DB cursor object
+    cursor = db_conn.cursor()
+
+    # Select all duplicate files and stuff
+    cursor.execute("SELECT File_ID,Name,Fingerprint,Parent_ID FROM '" + 
+                   table_names['files'] + "' WHERE " +
+                   "Fingerprint IN (SELECT Fingerprint from '" + 
+                   table_names['files'] + "' GROUP BY Fingerprint HAVING " +
+                   "1<COUNT(*)) ORDER BY Fingerprint")
+    for entry in cursor.fetchall():
+        count += 1
+        try:
+            # Attempt to append the current entry to the end of list for 
+            # its fingerprint
+            file_hash[entry[2]].append( (entry[0], entry[1], entry[3]) )
+        except KeyError:
+            # New entry
+            file_hash[entry[2]] = [ (entry[0], entry[1], entry[3]) ]
+
+        # Add this directory to the look up table if it isn't already there.
+        if not dir_hash.has_key(entry[3]):
+            dir_hash[entry[3]] = ""
+        
+
+    # Populate directory lookup table
+## TO DO
+
+    # Display results
+## TO DO -> Need to clean up output and incorporate directory names.
+    for fp in file_hash.keys():
+        print "With Fingerprint 0x" + fp + ":"
+
+        for entry in file_hash[fp]:
+            print "    ID=" + str(entry[0]) + ", Name='" + str(entry[1]) + \
+                "', Parent=" + str(entry[2])
+
+    print "[------------------------------------------------------------------]"
+    print "Duplicates found: " + str(count)
+
 ########
 # Main #
 ########
@@ -530,12 +585,18 @@ cmd_args = parse_args()
 setup_logger(cmd_args.quiet,cmd_args.debug,cmd_args.log)
 logging.debug('Command-line arguments: %s', vars(cmd_args))
 
-# Open fingerprint database
-with open_db(cmd_args.db) as db_conn:
+if cmd_args.dupes:
+    # Open fingerprint database
+    with open_db(cmd_args.db) as db_conn:
+        check_duplicates(db_conn)
 
-    # Process the specified directory trees.
-    for root in cmd_args.root_dir:
-        process_root(root, db_conn)
+else:
+    # Open fingerprint database
+    with open_db(cmd_args.db) as db_conn:
+        
+        # Process the specified directory trees.
+        for root in cmd_args.root_dir:
+            process_root(root, db_conn)
 
 # Fini!
 logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
