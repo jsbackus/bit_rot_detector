@@ -17,6 +17,11 @@
 * Need to add code to fingerprint db
 * code to copy db to backup locations?
 * code/script to compare databases?
+* Add ability to only check files if the directory their in hasn't been checked
+  recently.
+  - make this optional
+  - make the time configurable.
+  - not doing for individual files to reduce db overhead.
 
 -= Repo =-
 * Need to tidy up TODO list!
