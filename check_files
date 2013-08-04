@@ -569,18 +569,21 @@ def check_duplicates(db_conn):
                        "' WHERE Path_ID IN (SELECT Parent_ID FROM TMP_DUPES " +
                        "GROUP BY Parent_ID)")
         while not done:
-            if (0 < cursor.rowcount):
+            if ( 0 < cursor.rowcount ):
                 cursor.execute("INSERT INTO TMP_DUPES_DIRS (Path_ID,Parent_ID" +
                                ") SELECT Path_ID,Parent_ID FROM '" + 
                                table_names['dirs'] + "' WHERE Path_ID IN " +
-                               "(SELECT Parent_ID FROM" +
-                               "TMP_DUPES_DIRS WHERE Path_ID NOT IN (SELECT " +
-                               "Path_ID FROM TMP_DUPES_DIRS))")
+                               "(SELECT Parent_ID FROM " +
+                               "TMP_DUPES_DIRS WHERE Parent_ID NOT IN (SELECT" +
+                               " Path_ID FROM TMP_DUPES_DIRS))")
             else:
                 done = True
 
         # Now retrieve directory names and place into a hash of path_id -> name
-        # so that we can rebuild path names
+        # so that we can rebuild path names.
+        # Note: we're expecting parents to have a numerically smaller ID than
+        # their children. This will hold true as long as parents are always 
+        # added to the database before processing children.
         parent_map = dict()
         cursor.execute("SELECT Path_ID,Parent_ID,Name FROM '" + 
                        table_names['dirs'] +
@@ -588,35 +591,28 @@ def check_duplicates(db_conn):
                        "TMP_DUPES_DIRS) ORDER BY Path_ID")
 
         dir_node_count = 0
-### There is a bug here \/ \/ \/
         for entry in cursor.fetchall():
             if entry[1] < 0:
                 # Root, so take as is
-                logging.debug('-> %s is root: %s=>%s', 
-                              entry, entry[0], entry[2])
                 parent_map[ entry[0] ] = entry[2]
             else:
                 # Subdirectory, so prepend its parent.
-                logging.debug('-> %s is sub: %s=>%s, parent:', 
-                              entry, entry[0], entry[2], entry[1])
                 parent_map[ entry[0] ] = os.path.join( parent_map[ entry[1] ], 
                                                        entry[2] )
             dir_node_count += 1
-### There is a bug here /\ /\ /\
 
-        print "Directory nodes processed: " + str(dir_node_count)
+        logging.info("Directory nodes processed: " + str(dir_node_count))
 
-    # Display results
+        # Display results
 ## TO DO -> Need to clean up output and incorporate directory names.
-    for fp in file_hash.keys():
-        print "With Fingerprint 0x" + fp + ":"
+        for fp in file_hash.keys():
+            print "With Fingerprint 0x" + fp + ":"
 
-        for entry in file_hash[fp]:
-            print "    ID=" + str(entry[0]) + ", Name='" + \
-                os.path.join(parent_map[ entry[2] ], entry[1])
+            for entry in file_hash[fp]:
+                print "    ID=" + str(entry[0]) + ", Name='" + \
+                    os.path.join(parent_map[ entry[2] ], entry[1])
 
-    print "[------------------------------------------------------------------]"
-    print "Duplicates found: " + str(count)
+    logging.info("Duplicates found: " + str(count))
 
 ########
 # Main #
