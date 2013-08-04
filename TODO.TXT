@@ -13,8 +13,6 @@
 * put DB in own thread
 * move all DB stuff to own functions (extricate from current functions)
 * Added throw/try/catch so that KeyboardInterrupt stops for multiple roots!
-* Create script to check for duplicates by fingerprint
-* Need to add code to fingerprint db
 * code to copy db to backup locations?
 * code/script to compare databases?
 * Add ability to only check files if the directory their in hasn't been checked
@@ -22,6 +20,8 @@
   - make this optional
   - make the time configurable.
   - not doing for individual files to reduce db overhead.
+* Add support for only scanning subtrees.
+  - This will likely mean bringing the "roots" table back...
 
 -= Repo =-
 * Need to tidy up TODO list!

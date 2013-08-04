@@ -36,9 +36,10 @@ def parse_args():
     parser.add_argument('--db', default='check_files.db',
                         help='Database that contains file fingerprint info.')
 
-    subparsers = parser.add_subparsers(title='subcommands',
+    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
                                        description='valid subcommands',
                                        help='Subcommand Help')
+    # Scan subparser
     scan_mode = subparsers.add_parser('scan', 
                                       help='Scans and checks the filesystem')
 
@@ -50,12 +51,18 @@ def parse_args():
                            'anything.')
     scan_mode.add_argument('root_dir', nargs='+', 
                            help='Root of a directory tree to scan and check.')
-    
+
+    # Dupes subparser
     dupes_mode = subparsers.add_parser('dupes', 
                                        help='Scans the database for duplicate' +
                                        ' files by fingerprint.')
     dupes_mode.add_argument('dupes_file', nargs='?', default='',
                             help='Optional file to dump list of duplicates to.')
+
+    # Check DB subparser
+    checkdb_mode = subparsers.add_parser('checkdb', 
+                                         help='Fingerprints the database in ' +
+                                         'order to verify it.')
 
     # Create namespace from command-line
     return parser.parse_args()
@@ -461,7 +468,7 @@ def process_root(rootdir, db_conn):
                 except OSError as e:
                     logging.warning("OSError({0}): {1}".format(e.errno, 
                                                                e.strerror) +
-                                    ' on file \'' + entry_full_name + '\'')
+                                    " on file '" + entry_full_name + "'")
 
             file_stats = add_tuples(file_stats, prune_files(node[0], 
                                                             dir_db_data[ \
@@ -646,6 +653,80 @@ def check_duplicates(db_conn):
 
     logging.info("Duplicates found: " + str(count))
 
+def write_db_fp(sha1, filename):
+    """Helper function to write the specified sha1 to the specified filename.
+    """
+    try:
+        fh = io.open(filename, 'wt')
+        payload = sha1 + os.linesep
+        fh.write(unicode(payload))
+        fh.close()
+    except IOError as e:
+        logging.error("IOError({0}): {1}".format(e.errno, e.strerror) +
+                      " on file '" + filename + "'")
+
+
+def check_db():
+    """Calculates the fingerprint of the database and checks it against the
+    fingerprint in a file with the same name + 'sha1' extension. In the event
+    that the fingerprints do not match, the mod times of the two files are
+    compared. If the db was modified after the fingerprint file, the database
+    is assumed fine and the fingerprint file is updated.
+    """
+
+    # For convenience...
+    fullname = cmd_args.db
+
+    # Log the file
+    logging.info("Fingerprinting database '%s'", fullname)
+    
+    # Generate fingerprint
+    fp_cpu_time = time.clock()
+    fp_real_time = time.time()
+    fp = calc_fingerprint(fullname)
+    logging.debug("Database '%s' has fingerprint '0x%s'", fullname, fp)
+    logging.debug("File '%s' finished in %.4f seconds (%.4f CPU seconds)", 
+                  fullname, time.time() - fp_real_time, 
+                  time.clock() - fp_cpu_time)
+
+    # Generate fingerprint filename
+    fp_file = fullname + ".sha1"
+
+    # Check against fingerprint file
+    try:
+        # Attempt to open the file. If we can't, assume that we need to create
+        # a new one.
+        fh = io.open(fp_file, 'rt')
+
+        last_fp = fh.readline().rstrip()
+        logging.debug("Previous fingerprint = '0x%s'", last_fp)
+
+        if fp != last_fp:
+            logging.debug("Database fingerprint does not match previous " +
+                          "fingerprint.")
+
+            # Check modification times.
+            db_stat = os.stat(fullname)
+            fp_stat = os.stat(fp_file)
+            if fp_stat.st_mtime < db_stat.st_mtime:
+                # Database has been touched since last fingerprint. Update.
+                logging.info("Database '" + fullname + "' newer than " +
+                             "fingerprint file '" + fp_file + "'. Updating...")
+                write_db_fp(fp, fp_file)
+            else:
+                # Looks like something squirrelly is going on. Alert user.
+                logging.warning("Database '" + fullname + "' does not match " +
+                                "fingerprint file '" + fp_file + 
+                                "'. Database could be damaged!")
+
+        else:
+            logging.info("Database fingerprint matches previous fingerprint.")
+
+    except IOError:
+        logging.info("Unable to open fingerprint file '" + fp_file + 
+                     "'. Generating a new one.")
+        write_db_fp(fp, fp_file)
+
 ########
 # Main #
 ########
@@ -661,16 +742,20 @@ cmd_args = parse_args()
 setup_logger(cmd_args.quiet,cmd_args.debug,cmd_args.log)
 logging.debug('Command-line arguments: %s', vars(cmd_args))
 
-# Open fingerprint database
-with open_db(cmd_args.db) as db_conn:
-    try:
-        # Assume scan mode and try to process the specified directory trees.
+if cmd_args.subcommand == 'scan':
+    # Open fingerprint database
+    with open_db(cmd_args.db) as db_conn:
+        # Scan each specified root.
         for root in cmd_args.root_dir:
             process_root(root, db_conn)
 
-    except AttributeError:
-        # Not scan mode, so try check mode
+elif cmd_args.subcommand == 'dupes':
+    # Open fingerprint database
+    with open_db(cmd_args.db) as db_conn:
         check_duplicates(db_conn)
+
+elif cmd_args.subcommand == 'checkdb':
+    check_db()
 
 # Fini!
 logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
