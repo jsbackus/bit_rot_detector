@@ -611,8 +611,8 @@ def check_duplicates(db_conn):
         dir_node_count = 0
         for entry in cursor.fetchall():
             if entry[1] < 0:
-                # Root, so take as is
-                parent_map[ entry[0] ] = entry[2]
+                # Root, so wrap it in brackets
+                parent_map[ entry[0] ] = "[" + entry[2] + "]: "
             else:
                 # Subdirectory, so prepend its parent.
                 parent_map[ entry[0] ] = os.path.join( parent_map[ entry[1] ], 
