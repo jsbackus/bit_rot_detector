@@ -3,13 +3,14 @@
 from __future__ import unicode_literals
 import logging
 import os
-#from os.path import join
 import stat
 import hashlib
 import argparse
 import sqlite3
 import operator
 import time
+import io
+import sys
 
 ###########
 # Globals #
@@ -23,7 +24,6 @@ def parse_args():
     """Sets up the argparse object and attempts to parse the command-line.
     """
     
-### TO DO: Should make "check dupes" a subcommand.
     # Create parser object
     parser = argparse.ArgumentParser(description=
                                      'Tool verify file integrity.')
@@ -33,18 +33,29 @@ def parse_args():
                         help='only display warnings and errors')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='display debugging information')
-    parser.add_argument('-p', '--prune', action='store_true',
-                        help='Prunes directories and files from database that' +
-                        ' no longer exist on the filesystem.')
     parser.add_argument('--db', default='check_files.db',
                         help='Database that contains file fingerprint info.')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='prints commands to execute, but don\'t do ' +
-                        'anything.')
-    parser.add_argument('--dupes', action='store_true',
-                        help='Scans the database for duplicate files.')
-    parser.add_argument('root_dir', nargs='+', 
-                        help='Root of a directory tree to scan and check.')
+
+    subparsers = parser.add_subparsers(title='subcommands',
+                                       description='valid subcommands',
+                                       help='Subcommand Help')
+    scan_mode = subparsers.add_parser('scan', 
+                                      help='Scans and checks the filesystem')
+
+    scan_mode.add_argument('-p', '--prune', action='store_true',
+                           help='Prunes directories and files from database ' +
+                           'that no longer exist on the filesystem.')
+    scan_mode.add_argument('--dry-run', action='store_true',
+                           help='prints commands to execute, but don\'t do ' +
+                           'anything.')
+    scan_mode.add_argument('root_dir', nargs='+', 
+                           help='Root of a directory tree to scan and check.')
+    
+    dupes_mode = subparsers.add_parser('dupes', 
+                                       help='Scans the database for duplicate' +
+                                       ' files by fingerprint.')
+    dupes_mode.add_argument('dupes_file', nargs='?', default='',
+                            help='Optional file to dump list of duplicates to.')
 
     # Create namespace from command-line
     return parser.parse_args()
@@ -603,14 +614,35 @@ def check_duplicates(db_conn):
 
         logging.info("Directory nodes processed: " + str(dir_node_count))
 
-        # Display results
-## TO DO -> Need to clean up output and incorporate directory names.
+        ## Display results
+
+        # Open dupes file, if specified
+        fh = None
+        if 0 < len(cmd_args.dupes_file):
+            fh = io.open(cmd_args.dupes_file, 'wt')
+        elif cmd_args.quiet:
+            fh = io.open(sys.stdout.fileno(), 'wt')
+        
         for fp in file_hash.keys():
-            print "With Fingerprint 0x" + fp + ":"
+            # Send to log
+            logging.info(str(len(file_hash[fp])) + " files with Fingerprint 0x" 
+                         + fp + ":")
 
             for entry in file_hash[fp]:
-                print "    ID=" + str(entry[0]) + ", Name='" + \
-                    os.path.join(parent_map[ entry[2] ], entry[1])
+                logging.info("    " + os.path.join(parent_map[ entry[2] ], 
+                                                   entry[1]) + " (ID = " +
+                             str(entry[0]) + ")")
+
+            # Send to file/STDOUT if appropriate
+            if not (fh == None):
+                fh.write(str(len(file_hash[fp])) + " files with Fingerprint 0x" 
+                         + fp + ":" + os.linesep)
+
+                for entry in file_hash[fp]:
+                    fh.write("    " + os.path.join(parent_map[ entry[2] ], 
+                                                   entry[1]) + os.linesep)
+        if not (fh == None):
+            fh.close()
 
     logging.info("Duplicates found: " + str(count))
 
@@ -629,18 +661,16 @@ cmd_args = parse_args()
 setup_logger(cmd_args.quiet,cmd_args.debug,cmd_args.log)
 logging.debug('Command-line arguments: %s', vars(cmd_args))
 
-if cmd_args.dupes:
-    # Open fingerprint database
-    with open_db(cmd_args.db) as db_conn:
-        check_duplicates(db_conn)
-
-else:
-    # Open fingerprint database
-    with open_db(cmd_args.db) as db_conn:
-        
-        # Process the specified directory trees.
+# Open fingerprint database
+with open_db(cmd_args.db) as db_conn:
+    try:
+        # Assume scan mode and try to process the specified directory trees.
         for root in cmd_args.root_dir:
             process_root(root, db_conn)
+
+    except AttributeError:
+        # Not scan mode, so try check mode
+        check_duplicates(db_conn)
 
 # Fini!
 logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
