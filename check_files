@@ -11,6 +11,7 @@ import operator
 import time
 import io
 import sys
+import datetime
 
 ###########
 # Globals #
@@ -49,6 +50,12 @@ def parse_args():
     scan_mode.add_argument('--dry-run', action='store_true',
                            help='prints commands to execute, but don\'t do ' +
                            'anything.')
+    scan_mode.add_argument('-s', '--skip-recent', action='store_true',
+                           help='When scanning, skips files in directories that'
+                           + ' have been checked recently. See --expr.')
+    scan_mode.add_argument('--expr', default=30, type=int,
+                           help="Specifies how old 'recent' is, in days, when" +
+                           " skipping recent files.")
     scan_mode.add_argument('root_dir', nargs='+', 
                            help='Root of a directory tree to scan and check.')
 
@@ -168,14 +175,14 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                 update_file(db_id, fp, mode, cursor)
 
                 # Return tuple indicating update
-                return (0,0,1,0,0)
+                return (0,0,1,0,0,0)
             else:
                 logging.warning('File \'' + fullname + '\' does not ' +
                                 'match fingerprint in database ' +
                                 'and is not newer. File could be damaged!')
 
                 # Return tuple indicating problem
-                return (0,0,0,1,0)
+                return (0,0,0,1,0,0)
         else:
             logging.debug('File \'' + fullname + '\' matches ' +
                           'fingerprint in database')
@@ -187,30 +194,30 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                                 'file \'' + fullname + 
                                 '\'! File could be damaged!')
                 # Return tuple indicating problem
-                return (0,0,0,1,0)
+                return (0,0,0,1,0,0)
             else:
                 logging.debug('File \'' + fullname + 
                               '\' matches file size in database')
                 # Return tuple indicating file ok
-                return (0,1,0,0,0)
+                return (0,1,0,0,0,0)
 
     except KeyError:
         # File doesn't exist in database - add
         add_file(filename, fp, mode, node[1], cursor)
 
         # Return tuple indicating addition
-        return (1,0,0,0,0)
+        return (1,0,0,0,0,0)
 
 def get_root_from_db(cursor, rootdir):
     """Searches the database using the specified cursor object for the first
     record in the roots table with the same name. If no record exists, one is 
-    added. Returns the tuple: (root dir, root id)
+    added. Returns the tuple: (root dir, root id, last_checked)
     """
 
     ret_val = -1
 
     # Search the database for this root by name. If it doesn't exist, add it.
-    cursor.execute("SELECT Path_ID from '" + table_names['dirs'] + 
+    cursor.execute("SELECT Path_ID, LastChecked from '" + table_names['dirs'] + 
                    "' WHERE Name=? AND Parent_ID=?", (rootdir,-1))
     row = cursor.fetchone()
     if row == None:
@@ -218,18 +225,18 @@ def get_root_from_db(cursor, rootdir):
         cursor.execute("INSERT INTO '" + table_names['dirs'] + 
                        "'(Name,Parent_ID) VALUES(?,?)", 
                        (rootdir,-1))
-        ret_val = cursor.lastrowid
+        ret_val = (cursor.lastrowid, "")
         logging.debug('Root \'' + rootdir + '\' not in database. Added ' +
                       'with ID = ' + str(ret_val))
     else:
-        ret_val = row[0]
+        ret_val = (row[0], row[1])
         logging.debug('Root \'' + rootdir + '\' found in database with ID = ' +
                       str(ret_val))
 
     # Return Root_ID for this root
     return ret_val
 
-def get_dir_items_from_db(cursor, parent_id):
+def get_dir_items_from_db(cursor, parent_id, check_files):
     """Searches the database using the specified cursor object for all items
     in the dirs and files tables with the specified Parent_ID.
     
@@ -243,31 +250,34 @@ def get_dir_items_from_db(cursor, parent_id):
     ret_val = { 'dir_entries': dict(), 'file_entries': dict() }
 
     # Search the database for all directories with the specified parent.
-    cursor.execute("SELECT Path_ID, Name from '" + table_names['dirs'] + 
-                   "' WHERE Parent_ID=?", (parent_id,))
+    cursor.execute("SELECT Path_ID, Name, LastChecked from '" + 
+                   table_names['dirs'] + "' WHERE Parent_ID=?", (parent_id,))
 
     for entry in cursor.fetchall():
         dir_id = entry[0]
         dir_name = entry[1]
+        last_checked = entry[2]
         logging.debug("Found dir '%s' (ID='%s') with parent '%s'.", 
                       dir_name, dir_id, parent_id)
-        ret_val['dir_entries'][dir_name] = (dir_id)
+        ret_val['dir_entries'][dir_name] = (dir_id, last_checked)
 
-    # Search the database for all files with the specified parent.
-    cursor.execute("SELECT File_ID, Name, LastModified, Fingerprint, Size " +
-                   "from '" + table_names['files'] + 
-                   "' WHERE Parent_ID=?", (parent_id,))
+    # Search the database for all files with the specified parent, unless
+    # we're skipping the files in this directory.
+    if check_files:
+        cursor.execute("SELECT File_ID, Name, LastModified, Fingerprint, Size" +
+                       " from '" + table_names['files'] + 
+                       "' WHERE Parent_ID=?", (parent_id,))
 
-    for entry in cursor.fetchall():
-        file_id = entry[0]
-        file_name = entry[1]
-        file_mtime = entry[2]
-        file_fp = entry[3]
-        file_size = entry[4]
-        logging.debug("Found file '%s' (ID='%s') with parent '%s'.", 
-                      file_name, file_id, parent_id)
-        ret_val['file_entries'][file_name] = (file_id, file_mtime, file_fp, 
-                                              file_size)
+        for entry in cursor.fetchall():
+            file_id = entry[0]
+            file_name = entry[1]
+            file_mtime = entry[2]
+            file_fp = entry[3]
+            file_size = entry[4]
+            logging.debug("Found file '%s' (ID='%s') with parent '%s'.", 
+                          file_name, file_id, parent_id)
+            ret_val['file_entries'][file_name] = (file_id, file_mtime, file_fp, 
+                                                  file_size)
 
     # Return entry list
     return ret_val
@@ -303,9 +313,18 @@ def add_dir(path, parent_id, cursor):
     cursor.execute("INSERT INTO '" + table_names['dirs'] + 
                    "'(Name, Parent_ID) VALUES(?, ?)", 
                    (path, str(parent_id)))
-    ret_val = cursor.lastrowid
+    ret_val = (cursor.lastrowid, None)
     logging.debug('Directory \'' + path + '\' added with ID = ' + str(ret_val))
     return ret_val
+
+def mark_dir_checked(dir_id, cursor):
+    """Marks the specified directory as "recently seen".
+    """
+
+    tmp_now = datetime.datetime.now()
+    cursor.execute("UPDATE '" + table_names['dirs'] + 
+                   "' SET LastChecked=? WHERE Path_ID=?", (tmp_now, dir_id))
+                                                           
 
 def prune_files(path, file_data, cursor):
     """This routine is responsible for iterating over the list of files in the
@@ -326,7 +345,7 @@ def prune_files(path, file_data, cursor):
                 logging.warning("File '%s' no longer exists in directory '%s'!",
                                 item, path)
 
-    return (0, 0, 0, 0, len(file_data) )
+    return (0, 0, 0, 0, len(file_data), 0 )
 
 def prune_dirs(path, dir_data, cursor):
     """This routine is responsible for iterating over the list of directories in
@@ -337,7 +356,7 @@ def prune_dirs(path, dir_data, cursor):
     """
 
     done = False
-    ret_val = [ (0, 0, 0, 0, 0), (0, 0, 0, 0, 0) ]
+    ret_val = [ (0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0) ]
     item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
 
     # Build a queue like in process_root of all directories to be pruned.
@@ -373,7 +392,7 @@ def prune_dirs(path, dir_data, cursor):
                 logging.warning("Subdirectory '%s' no longer exists in " +
                                 "directory '%s'!", node[1], node[0])
 
-            ret_val[1] = add_tuples(ret_val[1], (0, 0, 0, 0, 1))
+            ret_val[1] = add_tuples(ret_val[1], (0, 0, 0, 0, 1, 0))
         else:
             done = True
 
@@ -386,23 +405,33 @@ def add_tuples(t1, t2):
     return map(operator.add, t1, t2)
 
 def process_root(rootdir, db_conn):
-    """Crawls the specified directory, processing all files that it finds.
+    """Scans the specified root, checking all files and directories that
+    belong to it.
     """
-    
+
     # Get DB cursor object
     cursor = db_conn.cursor()
     
     # Remove any trailing OS separators
     rootdir = rootdir.rstrip(os.sep)
     
-    dir_id = get_root_from_db(cursor, rootdir)
+    root_info = get_root_from_db(cursor, rootdir)
+
+    crawl_tree(rootdir, root_info[0], root_info[1], cursor)
+
+def crawl_tree(rootdir, dir_id, last_checked, cursor):
+    """Crawls the specified directory, processing all files that it finds.
+    """
+
+    # Build timedelta object used to determine if entities have expired.
+    expr_check = datetime.timedelta(cmd_args.expr)
 
     # Push root onto queue to start process
-    dir_queue = [(rootdir, dir_id)]
+    dir_queue = [(rootdir, dir_id, last_checked)]
 
     # Order: (added, good, updated, bad, missing)
-    file_stats = (0,0,0,0,0)
-    dir_stats = (0,0,0,0,0)
+    file_stats = (0,0,0,0,0,0)
+    dir_stats = (0,0,0,0,0,0)
 
     try:
         # Walk the filesystem
@@ -410,12 +439,24 @@ def process_root(rootdir, db_conn):
             node = dir_queue.pop()
 
             # Log the directory that we are processing
-            logging.info('Processing directory \'%s\'', node[0])
+            logging.info("Processing directory '%s'", node[0])
+            logging.debug("%s", node)
+
+            # Figure out if we're skipping the files in this directory
+            check_files = True
+            if cmd_args.skip_recent:
+                if (node[2] != None) and (0 < len(str(node[2]))):
+                    tmp_delta = datetime.datetime.now() - node[2]
+                    if not (expr_check < tmp_delta):
+                        check_files = False
+                        logging.info("Skipping files in '%s' because it was " +
+                                     "last checked %s days ago.", node[0], 
+                                     tmp_delta.days)
 
             # Query the database
             db_cpu_time = time.clock()
             db_real_time = time.time()
-            dir_db_data = get_dir_items_from_db(cursor, node[1])
+            dir_db_data = get_dir_items_from_db(cursor, node[1], check_files)
             logging.debug("Dir '%s' DB fetched in %.4f seconds (%.4f CPU " +
                           "seconds)",
                           node[0], time.time() - db_real_time, 
@@ -433,22 +474,27 @@ def process_root(rootdir, db_conn):
                     if stat.S_ISREG(entry_stat.st_mode):
                         # Entry is a regular file.
                         
-                        # Process file and update stats
-                        file_stats = add_tuples(file_stats, 
-                                                process_file(node, entry, 
-                                                             entry_stat, 
-                                                             dir_db_data[ \
-                                    'file_entries'],
-                                                             cursor))
+                        # Process file and update stats, unless we're skipping
+                        # files in this directory
+                        if check_files:
+                            file_stats = add_tuples(file_stats, 
+                                                    process_file(node, entry, 
+                                                                 entry_stat, 
+                                                                 dir_db_data[ \
+                                        'file_entries'],
+                                                                 cursor))
+                        else:
+                            file_stats = add_tuples(file_stats, 
+                                                    (0, 0, 0, 0, 0, 1))
                         
                     elif stat.S_ISDIR(entry_stat.st_mode):
                         # Attempt to push directory onto stack using data from 
                         # db. If there is an error, assume that the directory is
                         # new. Add it to the DB then push it onto the stack.
                         try:
-                            dir_queue.append( (entry_full_name, 
-                                               dir_db_data['dir_entries'] \
-                                                   [entry]) )
+                            tmp_data = dir_db_data['dir_entries'][entry]
+                            dir_queue.append( (entry_full_name, tmp_data[0],
+                                               tmp_data[1]) )
                             
                             del(dir_db_data['dir_entries'][entry])
                             logging.debug('Marking directory \'' + 
@@ -456,14 +502,15 @@ def process_root(rootdir, db_conn):
                                           '\' as seen.')
                             
                             # Update stats
-                            dir_stats = add_tuples(dir_stats, (0,1,0,0,0))
+                            dir_stats = add_tuples(dir_stats, (0,1,0,0,0,0))
                         except KeyError:
                             # Item not in list. Add then append to queue.
-                            dir_id = add_dir(entry, node[1], cursor)
-                            dir_queue.append( (entry_full_name, dir_id) )
+                            tmp_data = add_dir(entry, node[1], cursor)
+                            dir_queue.append( (entry_full_name, tmp_data[0],
+                                               tmp_data[1]) )
 
                             # Update stats.
-                            dir_stats = add_tuples(dir_stats, (1,0,0,0,0))
+                            dir_stats = add_tuples(dir_stats, (1,0,0,0,0,0))
 
                 except OSError as e:
                     logging.warning("OSError({0}): {1}".format(e.errno, 
@@ -477,6 +524,10 @@ def process_root(rootdir, db_conn):
             file_stats = add_tuples(file_stats, tmp_stats[0])
             dir_stats = add_tuples(dir_stats, tmp_stats[1])
 
+            # Mark this directory has recently checked, if appropriate
+            if check_files:
+                mark_dir_checked(node[1], cursor)
+
     except KeyboardInterrupt:
         logging.error("Interrupt detected, aborting crawl and " +
                       "committing all changes.")
@@ -485,13 +536,13 @@ def process_root(rootdir, db_conn):
     db_conn.commit()
 
     # Print stats!
-    action_names = ('added', 'good', 'updated', 'BAD', 'MISSING')
+    action_names = ('added', 'good', 'updated', 'BAD', 'MISSING', 'Skipped')
     logging.info('Finished processing root \'' + root + '\': ')
     logging.info('    Files:')
-    for idx in range(0,5):
+    for idx in range(0,len(action_names)):
         logging.info('      %s: %s', action_names[idx], file_stats[idx])
     logging.info('    Directories:')
-    for idx in range(0,5):
+    for idx in range(0,len(action_names)):
         logging.info('      %s: %s', action_names[idx], dir_stats[idx])
 
     # Return stats
@@ -504,7 +555,8 @@ def open_db(db_url):
     """
 
     # Connect to database
-    conn = sqlite3.connect(database=db_url)
+    conn = sqlite3.connect(database=db_url, 
+                           detect_types=sqlite3.PARSE_DECLTYPES)
 
     # Look for fingerprints table
     cursor = conn.cursor()
@@ -530,7 +582,7 @@ def open_db(db_url):
     if not(found['dirs']):
         cursor.execute("CREATE TABLE '" + table_names['dirs'] + 
                        "'(Path_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                       "Name TEXT, Parent_ID INT)")
+                       "Name TEXT, Parent_ID INT, LastChecked TIMESTAMP)")
         cursor.execute("CREATE INDEX dir_parent_idx ON " + table_names['dirs']
                       + "(Parent_ID)")
         
