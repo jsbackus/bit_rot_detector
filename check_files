@@ -75,6 +75,16 @@ def parse_args():
                                   help='Optional file to dump list of ' +
                                   'duplicates to.')
 
+    # Diff Root subparser
+    diff_mode = subparsers.add_parser('diffroot', 
+                                      help='Scans the database for ' +
+                                      'duplicate directory subtrees.')
+    diff_mode.add_argument('output', nargs='?', default='',
+                           help='Optional file to dump list of ' +
+                           'duplicates to.')
+    diff_mode.add_argument('root_names', nargs='2', 
+                           help='Names of roots to check')
+
     # Check DB subparser
     checkdb_mode = subparsers.add_parser('checkdb', 
                                          help='Fingerprints the database in ' +
@@ -803,26 +813,36 @@ cmd_args = parse_args()
 setup_logger(cmd_args.quiet,cmd_args.debug,cmd_args.log)
 logging.debug('Command-line arguments: %s', vars(cmd_args))
 
-if cmd_args.subcommand == 'scan':
-    # Open fingerprint database
-    with open_db(cmd_args.db) as db_conn:
-        # Scan each specified root.
-        for root in cmd_args.root_dir:
-            process_root(root, db_conn)
+try:
+    if cmd_args.subcommand == 'scan':
+        # Open fingerprint database
+        with open_db(cmd_args.db) as db_conn:
+            # Scan each specified root.
+            for root in cmd_args.root_dir:
+                process_root(root, db_conn)
+                
+    elif cmd_args.subcommand == 'dupe_files':
+        # Open fingerprint database
+        with open_db(cmd_args.db) as db_conn:
+            check_duplicates(db_conn)
+            
+    elif cmd_args.subcommand == 'dupe_trees':
+        print "\n\nWarning: Not supported yet!\n"
+        # Open fingerprint database
+        #    with open_db(cmd_args.db) as db_conn:
+        #        check_duplicates(db_conn)
 
-elif cmd_args.subcommand == 'dupe_files':
-    # Open fingerprint database
-    with open_db(cmd_args.db) as db_conn:
-        check_duplicates(db_conn)
-
-elif cmd_args.subcommand == 'dupe_trees':
-    print "\n\nWarning: Not supported yet!\n"
-    # Open fingerprint database
-#    with open_db(cmd_args.db) as db_conn:
-#        check_duplicates(db_conn)
-
-elif cmd_args.subcommand == 'checkdb':
-    check_db()
+    elif cmd_args.subcommand == 'diffroot':
+        print "\n\nWarning: Not supported yet!\n"
+        # Open fingerprint database
+        #    with open_db(cmd_args.db) as db_conn:
+        #        check_duplicates(db_conn)
+        
+    elif cmd_args.subcommand == 'checkdb':
+        check_db()
+except KeyboardInterrupt:
+#    logging.error("Interrupt detected")
+    pass
 
 # Fini!
 logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
