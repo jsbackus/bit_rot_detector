@@ -21,3 +21,28 @@
 -= Repo =-
 * Need to tidy up TODO list!
 * Write a decent README.
+
+-= 8/10/13 =-
+* Deciphering targets:
+  - allow user to specify root with --root
+  - convert "." and ".." to actual name
+  - get absolute path name
+  - look base name up in:
+    o files table first
+    o directory table second
+  - if any entries are found, generate tree until can resolve:
+    o root id
+    o parent id
+  - for diff roots, start at root and descend into common children.
+  - for dupe subtrees:
+    o first, generate list of dir entries that have same name.
+    o for each grouping, start comparing file names and optionally finger prints
+      of contents. include child directories.
+    o calculate a "likeness" metric for each item in each grouping
+    o rebuild tree structure until likeness metric drops off
+  - add ability to delete one or more roots.
+    o first delete children
+    o then delete relevant entries in roots table.
+  - add ability to browse file structure.
+
+      
