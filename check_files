@@ -59,12 +59,21 @@ def parse_args():
     scan_mode.add_argument('root_dir', nargs='+', 
                            help='Root of a directory tree to scan and check.')
 
-    # Dupes subparser
-    dupes_mode = subparsers.add_parser('dupes', 
-                                       help='Scans the database for duplicate' +
-                                       ' files by fingerprint.')
-    dupes_mode.add_argument('dupes_file', nargs='?', default='',
-                            help='Optional file to dump list of duplicates to.')
+    # Dupe files subparser
+    dupe_files_mode = subparsers.add_parser('dupe_files', 
+                                            help='Scans the database for ' +
+                                            'duplicate files by fingerprint.')
+    dupes_files_mode.add_argument('output', nargs='?', default='',
+                                  help='Optional file to dump list of ' +
+                                  'duplicates to.')
+
+    # Dupe subtrees subparser
+    dupes_trees_mode = subparsers.add_parser('dupe_trees', 
+                                             help='Scans the database for ' +
+                                             'duplicate directory subtrees.')
+    dupes_trees_mode.add_argument('output', nargs='?', default='',
+                                  help='Optional file to dump list of ' +
+                                  'duplicates to.')
 
     # Check DB subparser
     checkdb_mode = subparsers.add_parser('checkdb', 
@@ -801,10 +810,16 @@ if cmd_args.subcommand == 'scan':
         for root in cmd_args.root_dir:
             process_root(root, db_conn)
 
-elif cmd_args.subcommand == 'dupes':
+elif cmd_args.subcommand == 'dupe_files':
     # Open fingerprint database
     with open_db(cmd_args.db) as db_conn:
         check_duplicates(db_conn)
+
+elif cmd_args.subcommand == 'dupe_trees':
+    print "\n\nWarning: Not supported yet!\n"
+    # Open fingerprint database
+#    with open_db(cmd_args.db) as db_conn:
+#        check_duplicates(db_conn)
 
 elif cmd_args.subcommand == 'checkdb':
     check_db()
