@@ -64,15 +64,15 @@ def parse_args():
     dupe_files_mode = subparsers.add_parser('dupe_files', 
                                             help='Scans the database for ' +
                                             'duplicate files by fingerprint.')
-    dupes_files_mode.add_argument('output', nargs='?', default='',
+    dupe_files_mode.add_argument('output', nargs='?', default='',
                                   help='Optional file to dump list of ' +
                                   'duplicates to.')
 
     # Dupe subtrees subparser
-    dupes_trees_mode = subparsers.add_parser('dupe_trees', 
+    dupe_trees_mode = subparsers.add_parser('dupe_trees', 
                                              help='Scans the database for ' +
                                              'duplicate directory subtrees.')
-    dupes_trees_mode.add_argument('output', nargs='?', default='',
+    dupe_trees_mode.add_argument('output', nargs='?', default='',
                                   help='Optional file to dump list of ' +
                                   'duplicates to.')
 
@@ -83,13 +83,26 @@ def parse_args():
     diff_mode.add_argument('output', nargs='?', default='',
                            help='Optional file to dump list of ' +
                            'duplicates to.')
-    diff_mode.add_argument('root_names', nargs='2', 
+    diff_mode.add_argument('root_names', nargs=2, 
                            help='Names of roots to check')
 
     # Check DB subparser
     checkdb_mode = subparsers.add_parser('checkdb', 
                                          help='Fingerprints the database in ' +
                                          'order to verify it.')
+
+    # list subparser
+    list_mode = subparsers.add_parser('list',
+                                      help='Displays database contents')
+    list_mode.add_argument('target', nargs='*', default='',
+                           help='Entry to list. Format: <root>/<path>')
+
+    # delroot subparser
+    delroot_mode = subparsers.add_parser('delroot',
+                                      help='Removes roots and their contents ' +
+                                         'from the database.')
+    delroot_mode.add_argument('target', nargs='+', default='',
+                           help='Root to remove.')
 
     # Create namespace from command-line
     return parser.parse_args()
@@ -674,6 +687,22 @@ def reconstruct_tree(cursor):
     
     return ret_val
 
+def gen_db_url(tree_info, parent_id, item):
+    """Generates a suitable string representation of the specified entry in the
+    database using the reconstructed tree information from reconstruct_tree().
+    """
+
+    if tree_info['dirs'].has_key( parent_id ):
+        root_id = tree_info['dirs'][ parent_id ][1]
+        ret_val = '[' + tree_info['roots'][ root_id ] + ']'
+        ret_val = os.path.join(ret_val, tree_info['dirs'][ parent_id ][0], 
+                               item)
+    else:
+        ret_val = '[' + tree_info['roots'][ parent_id ] + ']'
+        ret_val = os.path.join(ret_val, item)
+        
+    return ret_val
+
 def check_duplicates(db_conn):
     """Scans the database looking for duplicate files by fingerprint. Prints
     a list of files to STDOUT.
@@ -728,14 +757,16 @@ def check_duplicates(db_conn):
 
         # Now reconstruct tree
         tree_info = reconstruct_tree(cursor)
+        logging.debug("Tree Info roots: %s", tree_info['roots'])
+        logging.debug("Tree Info dirs: %s", tree_info['dirs'])
 
         ## Display results
-### TO DO
+
         # Open dupes file, if specified
         fh = None
-        if 0 < len(cmd_args.dupes_file):
+        if 0 < len(cmd_args.output):
             fh = io.open(cmd_args.dupes_file, 'wt')
-        elif cmd_args.quiet:
+        elif cmd_args.quiet or (0 < len(cmd_args.log)):
             fh = io.open(sys.stdout.fileno(), 'wt')
         
         for fp in file_hash.keys():
@@ -744,11 +775,9 @@ def check_duplicates(db_conn):
                          + fp + ":")
 
             for entry in file_hash[fp]:
-                parent_info = tree_info['dirs'][ entry[2] ]
-                root_name = '[' + tree_info['roots'][ parent_info[1] ] + ']'
-                logging.info("    " + os.path.join(root_name, parent_info[0], 
-                                                   entry[1]) + " (ID = " +
-                             str(entry[0]) + ")")
+                path_name = gen_db_url( tree_info, entry[2], entry[1] )
+                logging.info("    " + path_name + " (ID = " + str(entry[0]) + 
+                             ")")
 
             # Send to file/STDOUT if appropriate
             if not (fh == None):
@@ -756,10 +785,11 @@ def check_duplicates(db_conn):
                          + fp + ":" + os.linesep)
 
                 for entry in file_hash[fp]:
-                    parent_info = tree_info['dirs'][ entry[2] ]
-                    root_name = '[' + tree_info['roots'][ parent_info[1] ] + ']'
-                    fh.write("    " + os.path.join(root_name, parent_info[0],
-                                                   entry[1]) + os.linesep)
+                    path_name = gen_db_url( tree_info, entry[2], entry[1] )
+                    logging.info("    " + path_name + " (ID = " + str(entry[0]) 
+                             + ")")
+                    fh.write("    " + path_name + os.linesep)
+
         if not (fh == None):
             fh.close()
 
@@ -880,8 +910,24 @@ try:
         #    with open_db(cmd_args.db) as db_conn:
         #        check_duplicates(db_conn)
         
+    elif cmd_args.subcommand == 'list':
+        print "\n\nWarning: Not supported yet!\n"
+        # Open fingerprint database
+#        with open_db(cmd_args.db) as db_conn:
+#            db_browse(db_conn)
+            
+    if cmd_args.subcommand == 'delroot':
+        print "\n\nWarning: Not supported yet!\n"
+        # Open fingerprint database
+#        with open_db(cmd_args.db) as db_conn:
+#            # Remove each specified root.
+#            for root in cmd_args.root_dir:
+#                if (del_root(root, db_conn) != 0):
+#                    break
+
     elif cmd_args.subcommand == 'checkdb':
         check_db()
+
 except KeyboardInterrupt:
     # Catch here also, in case it was missed earlier.
     logging.error("Interrupt detected! Aborting")

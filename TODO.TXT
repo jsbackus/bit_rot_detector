@@ -33,16 +33,16 @@
   - if any entries are found, generate tree until can resolve:
     o root id
     o parent id
-  - for diff roots, start at root and descend into common children.
-  - for dupe subtrees:
-    o first, generate list of dir entries that have same name.
-    o for each grouping, start comparing file names and optionally finger prints
-      of contents. include child directories.
-    o calculate a "likeness" metric for each item in each grouping
-    o rebuild tree structure until likeness metric drops off
-  - add ability to delete one or more roots.
-    o first delete children
-    o then delete relevant entries in roots table.
-  - add ability to browse file structure.
+* for diff roots, start at root and descend into common children.
+* for dupe subtrees:
+  - first, generate list of dir entries that have same name.
+  - for each grouping, start comparing file names and optionally finger prints
+    of contents. include child directories.
+  - calculate a "likeness" metric for each item in each grouping
+  - rebuild tree structure until likeness metric drops off
+* add ability to delete one or more roots.
+  - first delete children
+  - then delete relevant entries in roots table.
+* add ability to browse file structure.
 
       
