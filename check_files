@@ -71,12 +71,16 @@ def parse_args():
                                   'duplicates to.')
 
     # Dupe subtrees subparser
-#    dupe_trees_mode = subparsers.add_parser('dupe_trees', 
-#                                             help='Scans the database for ' +
-#                                             'duplicate directory subtrees.')
-#    dupe_trees_mode.add_argument('output', nargs='?', default='',
-#                                  help='Optional file to dump list of ' +
-#                                  'duplicates to.')
+    dupe_trees_mode = subparsers.add_parser('dupe_trees', 
+                                             help='Scans the database for ' +
+                                             'duplicate directory subtrees.')
+    dupe_trees_mode.add_argument('--nofp', action='store_true',
+                                 help="Don't compare file fingerprints.")
+    dupe_trees_mode.add_argument('--nofile', action='store_true',
+                                 help="Don't compare files at all.")
+    dupe_trees_mode.add_argument('output', nargs='?', default='',
+                                  help='Optional file to dump list of ' +
+                                  'duplicates to.')
 
     # Diff Root subparser
 #    diff_mode = subparsers.add_parser('diffroot', 
@@ -740,9 +744,9 @@ def drop_tmp_dir_table(cursor):
     """
     cursor.execute("DROP TABLE '" + table_names['tmp_dirs'] + "'")
 
-def check_duplicates(db_conn):
-    """Scans the database looking for duplicate files by fingerprint. Prints
-    a list of files to STDOUT.
+def check_dupe_files(db_conn):
+    """Scans the database looking for duplicate files by fingerprint and prints
+    results to STDOUT or optional output file.
     """
 
     # Dict of lists by fingerprint
@@ -793,8 +797,6 @@ def check_duplicates(db_conn):
 
         # Now reconstruct tree
         tree_info = reconstruct_tree(cursor)
-        logging.debug("Tree Info roots: %s", tree_info['roots'])
-        logging.debug("Tree Info dirs: %s", tree_info['dirs'])
 
         ## Display results
 
@@ -830,6 +832,154 @@ def check_duplicates(db_conn):
             fh.close()
 
     logging.info("Duplicates found: " + str(count))
+
+def check_dupe_trees(db_conn):
+    """Scans the database looking for duplicate subtrees and prints results
+    to STDOUT or optional output file.
+    """
+
+    # Get DB cursor object
+    cursor = db_conn.cursor()
+
+    # Create temp table
+    create_tmp_dir_table(cursor)
+
+    # Dict of duplicates
+    dupes_hash = dict()
+    
+    # Dict of directories by ID
+    dir_hash = dict()
+
+    # Count of duplicates
+    count = 0
+
+    # Algorithm:
+    # 1. Start with all directories that do not have any children directories
+    #    and have the same name
+    # 2. Grab all files in these directories
+    # 3. For each set of like-named directories, compare files
+    # 4. For all matching directories, grab parents and siblings.
+    # 5. Remove any parents with children not already in list of directories.
+    #    If that orphans any trees, add them to the list to report and remove
+    #    from list to process.
+    # 6. Repeat 2-5 until list to process is empty.
+
+### TO DO
+    print "\n\nNot implemented yet!\n"
+#     # Not checking files, so scan database for all like-named directories.
+#     cursor.execute("CREATE TEMP TABLE TMP_DUPES AS SELECT Path_ID,Name," +
+#                    "Parent_ID FROM '" + table_names['dirs'] +
+#                    "' WHERE Name IN (SELECT Name FROM '" + 
+#                    table_names['dirs'] + "' GROUP BY Name HAVING " +
+#                    "1<COUNT(*)) ORDER BY Name")
+
+#         # Select all duplicate directories
+#         cursor.execute("SELECT Path_ID,Name,Parent_ID FROM TMP_DUPES")
+#         # Insert into LUT
+#         for entry in cursor.fetchall():
+#             if not dupes_hash[ entry[1] ]:
+#                 dupes_hash[ entry[1] ] = []
+#             dupes_hash[ entry[1] ].append( (entry[0], entry[1], entry[3]) )
+
+#         # Populate directory lookup table with all directories that have the 
+#         # same name. We'll use a SQL to do the heavy lifting to avoid shipping
+#         # data back and forth.
+#         cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
+#                        "' (Path_ID,Parent_ID) SELECT Path_ID,Parent_ID " +
+#                        " FROM '" + table_names['dirs'] + "' WHERE Path_ID IN " +
+#                        "TMP_DUPES")
+
+
+#     # Grab duplicate files, if appropriate.
+#     if not cmd_args.nofile:
+#         # Create a temporary table containing all duplicate files
+#         if cmd_args.nofp:
+#             cursor.execute("CREATE TEMP TABLE TMP_DUPES AS SELECT " +
+#                            "File_ID,Name,Fingerprint,Parent_ID FROM '" + 
+#                            table_names['files'] + "' WHERE " +
+#                            "Name IN (SELECT Name from '" + 
+#                            table_names['files'] + "' GROUP BY " +
+#                            "Name HAVING 1<COUNT(*)) ORDER BY Name")
+#         else:
+#             cursor.execute("CREATE TEMP TABLE TMP_DUPES AS SELECT " +
+#                            "File_ID,Name,Fingerprint,Parent_ID FROM '" + 
+#                            table_names['files'] + "' WHERE " +
+#                            "Fingerprint IN (SELECT Fingerprint from '" + 
+#                            table_names['files'] + "' GROUP BY Fingerprint," +
+#                            "Name HAVING 1<COUNT(*)) ORDER BY Fingerprint")
+
+#         # Select all duplicate files
+#         cursor.execute("SELECT File_ID,Name,Fingerprint,Parent_ID FROM " +
+#                        "TMP_DUPES")
+#         for entry in cursor.fetchall():
+#             # Create the dict key.
+#             if cmd_args.nofp:
+#                 # Just use filename
+#                 entry_key = entry[1]
+#             else:
+#                 # Combine filename and fingerprint
+#                 entry_key = entry[1] + "_" + entry[2]
+
+#             # Insert into LUT
+#             if not dupes_hash[ entry_key ]:
+#                 dupes_hash[ entry_key ] = []
+#             dupes_hash[ entry_key ].append( (entry[0], entry[1], entry[3]) )
+
+#         # Populate directory lookup table so that we can reconstruct each
+#         # path. We'll use a SQL to do the heavy lifting to avoid shipping
+#         # data back and forth.
+#         cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
+#                        "' (Path_ID,Parent_ID) " +
+#                        "SELECT Path_ID,Parent_ID FROM '" + 
+#                        table_names['dirs'] +
+#                        "' WHERE Path_ID IN (SELECT Parent_ID FROM " +
+#                        "TMP_DUPES GROUP BY Parent_ID)")
+#     else:
+
+#     # Now reconstruct tree
+#     tree_info = reconstruct_tree(cursor)
+
+#     # Scan tree for duplicate subtrees. Start with duplicate nodes
+#     for entry in dupes_hash.keys():
+#         tmp_entry = entry
+#         tmp_paths = range(0, len(tmp_entry) )
+#         while 
+
+# ## TO Do
+#                        ## Display results
+
+#         # Open dupes file, if specified
+#         fh = None
+#         if 0 < len(cmd_args.output):
+#             fh = io.open(cmd_args.dupes_file, 'wt')
+#         elif not cmd_args.verbose or (0 < len(cmd_args.log)):
+#             fh = io.open(sys.stdout.fileno(), 'wt')
+        
+#         for fp in dupes_hash.keys():
+#             # Send to log
+#             logging.info(str(len(dupes_hash[fp])) + " files with Fingerprint 0x" 
+#                          + fp + ":")
+
+#             for entry in dupes_hash[fp]:
+#                 path_name = gen_db_url( tree_info, entry[2], entry[1] )
+#                 logging.info("    " + path_name + " (ID = " + str(entry[0]) + 
+#                              ")")
+
+#             # Send to file/STDOUT if appropriate
+#             if not (fh == None):
+#                 fh.write(str(len(dupes_hash[fp])) + " files with Fingerprint 0x" 
+#                          + fp + ":" + os.linesep)
+
+#                 for entry in dupes_hash[fp]:
+#                     path_name = gen_db_url( tree_info, entry[2], entry[1] )
+#                     logging.info("    " + path_name + " (ID = " + str(entry[0]) 
+#                              + ")")
+#                     fh.write("    " + path_name + os.linesep)
+
+#         if not (fh == None):
+#             fh.close()
+
+#     logging.info("Duplicates found: " + str(count))
 
 def del_roots(db_conn):
     """Attempts to remove the specified root
@@ -1061,19 +1211,18 @@ try:
     elif cmd_args.subcommand == 'dupe_files':
         # Open fingerprint database
         with open_db(cmd_args.db) as db_conn:
-            check_duplicates(db_conn)
+            check_dupe_files(db_conn)
             
     elif cmd_args.subcommand == 'dupe_trees':
-        print "\n\nWarning: Not supported yet!\n"
         # Open fingerprint database
-        #    with open_db(cmd_args.db) as db_conn:
-        #        check_duplicates(db_conn)
+            with open_db(cmd_args.db) as db_conn:
+                check_dupe_trees(db_conn)
 
     elif cmd_args.subcommand == 'diffroot':
         print "\n\nWarning: Not supported yet!\n"
         # Open fingerprint database
         #    with open_db(cmd_args.db) as db_conn:
-        #        check_duplicates(db_conn)
+        #        check_dupe_files(db_conn)
         
     elif cmd_args.subcommand == 'list':
         # Open fingerprint database
