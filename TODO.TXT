@@ -40,9 +40,5 @@
     of contents. include child directories.
   - calculate a "likeness" metric for each item in each grouping
   - rebuild tree structure until likeness metric drops off
-* add ability to delete one or more roots.
-  - first delete children
-  - then delete relevant entries in roots table.
-* add ability to browse file structure.
 
       
