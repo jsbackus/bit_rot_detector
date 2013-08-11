@@ -16,7 +16,7 @@ import datetime
 ###########
 # Globals #
 ###########
-table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 
+table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 'roots' : 'fp_roots', 
                 'tmp_dirs' : 'tmp_dirs' }
 
 #############
@@ -57,7 +57,9 @@ def parse_args():
     scan_mode.add_argument('--expr', default=30, type=int,
                            help="Specifies how old 'recent' is, in days, when" +
                            " skipping recent files.")
-    scan_mode.add_argument('root_dir', nargs='+', 
+    scan_mode.add_argument('-r', '--root', default='',
+                           help='Specifies the root.')
+    scan_mode.add_argument('target', nargs='+', 
                            help='Root of a directory tree to scan and check.')
 
     # Dupe files subparser
@@ -623,6 +625,11 @@ def open_db(db_url):
                        "Name TEXT, Parent_ID INT, LastChecked TIMESTAMP)")
         cursor.execute("CREATE INDEX dir_parent_idx ON " + table_names['dirs']
                       + "(Parent_ID)")
+        
+    if not(found['roots']):
+        cursor.execute("CREATE TABLE '" + table_names['roots'] + 
+                       "'(Alias_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                       "Name TEXT, Path, Path_ID INT)")
         
     return conn
 
