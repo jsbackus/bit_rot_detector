@@ -137,6 +137,18 @@ def setup_logger(quiet_mode, debug_mode, filename=''):
     # Set log level
     logging.getLogger().setLevel(logLevel)
 
+def tokenize_path(path):
+    """Generator to tokenize a path via os.path.split. 
+    Note: tokens will return in reverse order!
+    """
+    tmp_path = path
+    while True:
+        elms = os.split(tmp_path)
+        if len(elms[1]) <= 0:
+            break
+        tmp_path = elms[0]
+        yield elms[1]
+
 def read_in_chunks(file_obj, chunk_size=1024*1024):
     """Generator to read data from the specified file in chunks.
     Default chunk size is 1M.
@@ -394,7 +406,7 @@ def prune_dirs(path, dir_data, cursor):
     ret_val = [ (0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0) ]
     item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
 
-    # Build a queue like in process_root of all directories to be pruned.
+    # Build a queue like in crawl_tree of all directories to be pruned.
     dir_queue = []
 
     while not done:
@@ -439,21 +451,185 @@ def add_tuples(t1, t2):
     """
     return map(operator.add, t1, t2)
 
-def process_root(rootdir, db_conn):
-    """Scans the specified root, checking all files and directories that
-    belong to it.
+def resolve_targets(cursor, targets)
+
+    # this is temporary...
+    roots = []
+    
+    targ_files = []
+    targ_dirs = []
+    for trgt in targets:
+        trgt_path = trgt.rstrip(os.sep)
+        if os.path.isreg(trgt[1]):
+            # target is a file. Name = basename
+            targ_files.append( ( os.path.basename(trgt_path), trgt_path ) )
+        elif os.path.isdir(trgt[1]):
+            # target is a directory. Name = target, unless it is "." or "..",
+            # in which case convert to basename of absolute path.
+            if trgt_path == "." or trgt_path == "..":
+                trgt_name = os.path.basename( os.path.abspath(trgt_path) )
+            else:
+                trgt_name = trgt
+            targ_dirs.append( ( trgt_name, trgt_path ) )
+        else:
+            logging.error("Invalid target specified: '%s'", trgt[1])
+
+    # If a root wasn't specified with --root, try the simple cases. Applies to
+    # directories only!
+    if len(cmd_args.root) <= 0:
+        # Check to see if anything is in the roots table. If not, assume each
+        # target is actually a root.
+        cursor.execute("SELECT COUNT(*) FROM '" + table_names['roots'] + "'")
+        if cursor.fetchone() <= 0:
+            logging.debug("Roots table is empty. Assuming targets are roots: " +
+                          "%s", targ_dirs)
+            for trgt in targ_dirs:
+                roots.append( trgt )
+            targ_dirs = []
+        # Search roots table for a target with the same name. Move each match
+        # to the roots list and remove from the targets list.
+        for trgt in targ_dirs:
+            cursor.execute( "SELECT COUNT(*) FROM '" + table_names['roots']
+                            + "' WHERE Name=?", (trgt[0],) )
+            if 0 < cursor.fetchone():
+                logging.debug("Target %s matches a root name and no root " +
+                              "was specified.", trgt[0])
+                roots.append( trgt )
+                targ_dirs.remove( trgt )
+
+    # build a list of file entries that match entries in targ_files.
+    if (0 < len(targ_files)) or (0 < len(targ_dirs)):
+        cursor.execute("CREATE TEMP TABLE TMP_VALID_FILES (File_ID INT,"+
+                       "Name TEXT,Parent_ID INT)")
+        cursor.execute("CREATE TEMP TABLE TMP_VALID_DIRS (Path_ID INT,"+
+                       "Name TEXT,Parent_ID INT")
+        if 0 < len(targ_files) :
+            cursor.execute("CREATE TEMP TABLE TMP_TARG_FILES (Name TEXT)")
+            for trgt in targ_files:
+                cursor.execute( "INSERT INTO TMP_TARG_FILES (Name) VALUES(?)", 
+                                (trgt[0],) )
+                cursor.execute("INSERT INTO TMP_VALID_FILES SELECT File_ID," +
+                               "Name,Parent_ID FROM '" + table_names['files'] +
+                               "' WHERE Name IN (SELECT Name FROM "+
+                               "TMP_TARG_FILES)")
+        
+        if 0 < len(targ_dirs) :
+            cursor.execute("CREATE TEMP TABLE TMP_TARG_DIRS (Name TEXT)")
+            for trgt in targ_dirs:
+                cursor.execute( "INSERT INTO TMP_TARG_DIRS (Name) VALUES(?)", 
+                            (trgt[0],) )
+                cursor.execute("INSERT INTO TMP_VALID_DIRS Path_ID,Name," +
+                               "Parent_ID FROM '" + table_names['files'] +
+                               "' WHERE Name IN (SELECT Name FROM "
+                               +"TMP_TARG_DIRS)")
+        # Reconstruct applicable tree
+        create_tmp_dir_table( cursor )
+        cursor.execute( "INSERT INTO '" + table_names['tmp_dirs'] + 
+                        "' (Path_ID,Parent_ID) SELECT Path_ID,Parent_ID FROM '"
+                        + table_names['dirs'] + "' WHERE Path_ID IN (SELECT " +
+                        "Parent_ID FROM TMP_VALID_FILES)")
+        cursor.execute( "INSERT INTO '" + table_names['tmp_dirs'] + 
+                        "' (Path_ID,Parent_ID) SELECT Path_ID,Parent_ID FROM '"
+                        + table_names['dirs'] + "' WHERE Path_ID IN (SELECT " +
+                        "Path_ID FROM TMP_VALID_DIRS)")
+        cursor.execute( "INSERT INTO '" + table_names['tmp_dirs'] + 
+                        "' (Path_ID,Parent_ID) SELECT Path_ID,Parent_ID FROM '"
+                        + table_names['dirs'] + "' WHERE Path_ID IN (SELECT " +
+                        "Parent_ID FROM TMP_VALID_DIRS)")
+        tree_info = reconstruct_tree(cursor)
+        drop_tmp_dir_table( cursor )
+
+        # Retrieve list of valid files and stuff into a dict of lists:
+        # name : (file_id,parent_id)
+        cursor.execute( "SELECT Name,File_ID,Parent_ID FROM TMP_VALID_FILES" )
+        valid_files = dict()
+        for row in cursor.fetchall():
+            if not valid_files.has_key( row[0] ):
+                valid_files[ row[0] ] = []
+            valid_files[ row[0] ].append( ( row[1], row[2] ) )
+
+        # Retrieve list of valid dirs and stuff into a dict of lists:
+        # name : (path_id,parent_id)
+        cursor.execute( "SELECT Name,Path_ID,Parent_ID FROM TMP_VALID_DIRS" )
+        valid_dirs = dict()
+        for row in cursor.fetchall():
+            if not valid_dirs.has_key( row[0] ):
+                valid_dirs[ row[0] ] = []
+            valid_dirs[ row[0] ].append( ( row[1], row[2] ) )
+
+        # Step through list of target files, removing any valid ones
+#        for trgt in targ_files:
+#            if valid_files.has_key(trgt):
+#                targ_files.remove(trgt)
+
+        # Step through list of target directories seeing if we have a match.
+        # If so, add to roots and remove from targ_dirs.
+        for trgt in targ_dirs:
+            if valid_dirs.has_key(trgt):
+                for entry in valid_dirs[trgt]:
+                    
+
+                targ_dirs.remove(trgt)
+            
+    
+    # build a list of dir entries that match base names in targ_dirs
+
+    # For any files and any remaining directories, tokenize the paths and
+    # attempt to resolve into root/subtree.
+    targ_parts = dict()
+    if 0 < len(targ_dirs):
+        for trgt in targ_dirs:
+            for token in tokenize_path( os.path.abspath( trgt[1] ) ):
+                targ_parts[ token ] = 1
+    if 0 < len(targ_files):
+        for trgt in targ_files:
+            for token in tokenize_path( os.path.dirname( 
+                    os.path.abspath( trgt[1] ) ) ):
+                targ_parts[ token ] = 1
+
+    if 0 < len(targ_parts):
+        # Now stuff the tokens into a temporary table and select all matching
+        # entries from the directory table
+        cursor.execute("CREATE TEMP TABLE TMP_TARG_DIRS (Name TEXT)")
+        for token in targ_parts.keys():
+            cursor.execute( "INSERT INTO TMP_TARG_DIRS (Name) VALUES(?)", 
+                            (token,) )
+        
+        create_tmp_dir_table( cursor )
+        cursor.execute( "INSERT INTO '" + table_names['tmp_dirs'] + 
+                        "' (Path_ID,Parent_ID) " +
+                        "SELECT Path_ID,Parent_ID FROM '" + table_names['dirs'] 
+                        + "' WHERE Name IN (SELECT Name FROM TMP_TARG_DIRS " +
+                        "GROUP BY Parent_ID)")
+        tree_info = reconstruct_tree(cursor)
+
+# TO DO
+
+    return { 'files' : targ_files, 'dirs' : targ_dirs }
+
+def scan_targets(db_conn):
+    """Attempts to determine the root associated with the each target, then
+    scans the target, checking all files and directories that belong to it.
     Returns 0 if successful or 1 if error.
     """
 
     # Get DB cursor object
     cursor = db_conn.cursor()
-    
-    # Remove any trailing OS separators
-    rootdir = rootdir.rstrip(os.sep)
-    
-    root_info = get_root_from_db(cursor, rootdir)
 
-    return crawl_tree(rootdir, root_info[0], root_info[1], cursor)
+    targets = resolve_targets(cursor, cmd_args.target)
+
+## TO DO
+
+    # Process any file targets
+    for target in targets['files']:
+        pass
+
+    # Now process roots
+    for target in targets['dirs']:
+## TO DO
+        root_info = get_root_from_db(cursor, target)
+        if( 0 < crawl_tree(rootdir, root_info[0], root_info[1], cursor) ):
+            break
 
 def crawl_tree(rootdir, dir_id, last_checked, cursor):
     """Crawls the specified directory, processing all files that it finds.
@@ -466,7 +642,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     # Push root onto queue to start process
     dir_queue = [(rootdir, dir_id, last_checked)]
 
-    # Order: (added, good, updated, bad, missing)
+    # Order: (added, good, updated, bad, missing, skipped)
     file_stats = (0,0,0,0,0,0)
     dir_stats = (0,0,0,0,0,0)
 
@@ -509,8 +685,19 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                 # Grab entry filesystem stats
                 try:
                     entry_stat = os.stat(entry_full_name)
+
+                    if os.path.islnk(entry_full_name):
+                        # Entry is a symbolic link, which we ignore.
+                        logging.info("Skipping symbolic link '%s'",
+                                     entry_full_name)
+                        if stat.S_ISREG(entry_stat.st_mode):
+                            file_stats = add_tuples(file_stats, 
+                                                    (0, 0, 0, 0, 0, 1))
+                        elif stat.S_ISDIR(entry_stat.st_mode):
+                            dir_stats = add_tuples(dir_stats, 
+                                                    (0, 0, 0, 0, 0, 1))
                     
-                    if stat.S_ISREG(entry_stat.st_mode):
+                    elif stat.S_ISREG(entry_stat.st_mode):
                         # Entry is a regular file.
                         
                         # Process file and update stats, unless we're skipping
@@ -601,7 +788,7 @@ def open_db(db_url):
     # Look for fingerprints table
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    found = {'files': False, 'dirs': False }
+    found = {'files': False, 'dirs': False, 'roots': False }
     for table in cursor.fetchall():
         logging.debug("Found table '" + table[0] + "'")
         for fp_table in table_names:
@@ -641,7 +828,7 @@ def reconstruct_tree(cursor):
     * dirs : <path_id> : (<full path sans root name>, root id)
     """
     
-    ret_val = { "roots" : {}, "dirs" : {} }
+    ret_val = { "roots" : dict(), "dirs" : dict() }
     done = False
 
     while not done:
@@ -710,6 +897,18 @@ def gen_db_url(tree_info, parent_id, item):
         
     return ret_val
 
+def create_tmp_dir_table(cursor):
+    """Creates the temporary directory table
+    """
+    cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
+                   "' (Path_ID INTEGER " +
+                   "PRIMARY KEY, Parent_ID INTEGER)")
+
+def drop_tmp_dir_table(cursor):
+    """Deletes the temporary dir table
+    """
+    cursor.execute("DROP TABLE '" + table_names['tmp_dirs'] + "'")
+
 def check_duplicates(db_conn):
     """Scans the database looking for duplicate files by fingerprint. Prints
     a list of files to STDOUT.
@@ -752,9 +951,8 @@ def check_duplicates(db_conn):
     # forth.
     if 0 < count:
         # Create temp table
-        cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
-                       "' (Path_ID INTEGER " +
-                       "PRIMARY KEY, Parent_ID INTEGER)")
+        create_tmp_dir_table(cursor)
+
         # First pass, direct parents from files temp table
         cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
                        "' (Path_ID,Parent_ID) " +
@@ -764,8 +962,6 @@ def check_duplicates(db_conn):
 
         # Now reconstruct tree
         tree_info = reconstruct_tree(cursor)
-        logging.debug("Tree Info roots: %s", tree_info['roots'])
-        logging.debug("Tree Info dirs: %s", tree_info['dirs'])
 
         ## Display results
 
@@ -800,6 +996,7 @@ def check_duplicates(db_conn):
         if not (fh == None):
             fh.close()
 
+    drop_tmp_dir_table(cursor)
     logging.info("Duplicates found: " + str(count))
 
 def write_db_fp(sha1, filename):
@@ -895,10 +1092,7 @@ try:
     if cmd_args.subcommand == 'scan':
         # Open fingerprint database
         with open_db(cmd_args.db) as db_conn:
-            # Scan each specified root.
-            for root in cmd_args.root_dir:
-                if (process_root(root, db_conn) != 0):
-                    break
+            scan_targets(db_conn)
                 
     elif cmd_args.subcommand == 'dupe_files':
         # Open fingerprint database
