@@ -31,7 +31,7 @@ def parse_args():
                                      'Tool verify file integrity.')
     parser.add_argument('-l', '--log', nargs='?', 
                         default='', help='log to file instead of console')
-    parser.add_argument('-q', '--quiet', action='store_true',
+    parser.add_argument('-v', '--verbose', action='store_true',
                         help='only display warnings and errors')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='display debugging information')
@@ -109,17 +109,17 @@ def parse_args():
     # Create namespace from command-line
     return parser.parse_args()
 
-def setup_logger(quiet_mode, debug_mode, filename=''):
+def setup_logger(verbose_mode, debug_mode, filename=''):
     """Sets up the global logging object.
     """
 
     # Determine log level
     if debug_mode:
         logLevel = logging.DEBUG
-    elif quiet_mode:
-        logLevel = logging.WARNING
-    else:
+    elif verbose_mode:
         logLevel = logging.INFO
+    else:
+        logLevel = logging.WARNING
 
     # Start logger with default level
     logging.basicConfig(format='[%(asctime)s %(levelname)s] %(message)s', 
@@ -136,6 +136,18 @@ def setup_logger(quiet_mode, debug_mode, filename=''):
 
     # Set log level
     logging.getLogger().setLevel(logLevel)
+
+def tokenize_path(path):
+    """Generator to tokenize a path via os.path.split. 
+    Note: tokens will return in reverse order!
+    """
+    tmp_path = path
+    while True:
+        elms = os.split(tmp_path)
+        if len(elms[1]) <= 0:
+            break
+        tmp_path = elms[0]
+        yield elms[1]
 
 def read_in_chunks(file_obj, chunk_size=1024*1024):
     """Generator to read data from the specified file in chunks.
@@ -370,7 +382,7 @@ def prune_files(path, file_data, cursor):
     
     if 0 < len(file_data):
         for item in file_data.keys():
-            if cmd_args.prune:
+            if ok_to_prune:
                 cursor.execute("DELETE FROM '" + table_names['files'] + 
                                "' WHERE File_ID = ?",
                                (file_data[item][0],))
@@ -394,7 +406,7 @@ def prune_dirs(path, dir_data, cursor):
     ret_val = [ (0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0) ]
     item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
 
-    # Build a queue like in process_root of all directories to be pruned.
+    # Build a queue like in crawl_tree of all directories to be pruned.
     dir_queue = []
 
     while not done:
@@ -414,13 +426,13 @@ def prune_dirs(path, dir_data, cursor):
             path = os.path.join(node[0], node[1])
 
             # Grab all entries for this directory from the database
-            item_data = get_dir_items_from_db(cursor, node[2])
+            item_data = get_dir_items_from_db(cursor, node[2][0], True)
 
             # Delete this item from the database, if appropriate
-            if cmd_args.prune:
+            if ok_to_prune:
                 cursor.execute("DELETE FROM '" + table_names['dirs'] + 
                                "' WHERE Path_ID = ?",
-                               (node[2],))
+                               (node[2][0],))
                 logging.info("Subdirectory '%s' pruned from directory '%s'.", 
                              node[1], node[0])
             else:
@@ -466,7 +478,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     # Push root onto queue to start process
     dir_queue = [(rootdir, dir_id, last_checked)]
 
-    # Order: (added, good, updated, bad, missing)
+    # Order: (added, good, updated, bad, missing, skipped)
     file_stats = (0,0,0,0,0,0)
     dir_stats = (0,0,0,0,0,0)
 
@@ -509,8 +521,19 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                 # Grab entry filesystem stats
                 try:
                     entry_stat = os.stat(entry_full_name)
+
+                    if os.path.islink(entry_full_name):
+                        # Entry is a symbolic link, which we ignore.
+                        logging.info("Skipping symbolic link '%s'",
+                                     entry_full_name)
+                        if stat.S_ISREG(entry_stat.st_mode):
+                            file_stats = add_tuples(file_stats, 
+                                                    (0, 0, 0, 0, 0, 1))
+                        elif stat.S_ISDIR(entry_stat.st_mode):
+                            dir_stats = add_tuples(dir_stats, 
+                                                    (0, 0, 0, 0, 0, 1))
                     
-                    if stat.S_ISREG(entry_stat.st_mode):
+                    elif stat.S_ISREG(entry_stat.st_mode):
                         # Entry is a regular file.
                         
                         # Process file and update stats, unless we're skipping
@@ -705,6 +728,18 @@ def gen_db_url(tree_info, parent_id, item):
         
     return ret_val
 
+def create_tmp_dir_table(cursor):
+    """Creates the temporary directory table
+    """
+    cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
+                   "' (Path_ID INTEGER " +
+                   "PRIMARY KEY, Parent_ID INTEGER)")
+
+def drop_tmp_dir_table(cursor):
+    """Deletes the temporary dir table
+    """
+    cursor.execute("DROP TABLE '" + table_names['tmp_dirs'] + "'")
+
 def check_duplicates(db_conn):
     """Scans the database looking for duplicate files by fingerprint. Prints
     a list of files to STDOUT.
@@ -747,9 +782,8 @@ def check_duplicates(db_conn):
     # forth.
     if 0 < count:
         # Create temp table
-        cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
-                       "' (Path_ID INTEGER " +
-                       "PRIMARY KEY, Parent_ID INTEGER)")
+        create_tmp_dir_table(cursor)
+
         # First pass, direct parents from files temp table
         cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
                        "' (Path_ID,Parent_ID) " +
@@ -768,7 +802,7 @@ def check_duplicates(db_conn):
         fh = None
         if 0 < len(cmd_args.output):
             fh = io.open(cmd_args.dupes_file, 'wt')
-        elif cmd_args.quiet or (0 < len(cmd_args.log)):
+        elif not cmd_args.verbose or (0 < len(cmd_args.log)):
             fh = io.open(sys.stdout.fileno(), 'wt')
         
         for fp in file_hash.keys():
@@ -797,87 +831,130 @@ def check_duplicates(db_conn):
 
     logging.info("Duplicates found: " + str(count))
 
+def del_roots(db_conn):
+    """Attempts to remove the specified root
+    """
+
+    file_stats = (0,0,0,0,0,0)
+    dir_stats = (0,0,0,0,0,0)
+
+    # Get DB cursor object
+    cursor = db_conn.cursor()
+
+    for target in cmd_args.target:
+        # Remove any trailing OS separators and split into tokens
+        target = target.rstrip(os.sep)
+
+        # Check for root in database
+        dir_id = get_root_from_db(cursor, target)[0]
+        dir_db_data = get_dir_items_from_db(cursor, dir_id, True)
+    
+        # Delete tree
+        tmp_stats = prune_dirs(target, dir_db_data['dir_entries'], cursor)
+        file_stats = add_tuples(file_stats, tmp_stats[0])
+        dir_stats = add_tuples(dir_stats, tmp_stats[1])
+
+    # Commit
+    db_conn.commit()
+
+    # Print stats!
+    logging.info("Finished deleting target(s) '%s': ", cmd_args.target)
+    logging.info("    Files: %s", file_stats[4])
+    logging.info('    Directories: %s', dir_stats[4])
+
 def list_db(db_conn, target):
-    """Lists all items that have target has a parent.
+    """Lists all items that have target has a parent or display info on file if
+    target is a file.
     """
 
     # Get DB cursor object
     cursor = db_conn.cursor()
 
-    # Create a temporary table containing all duplicate files
-    cursor.execute("CREATE TEMP TABLE TMP_DUPES AS SELECT " +
-                   "File_ID,Name,Fingerprint,Parent_ID FROM '" + 
-                   table_names['files'] + "' WHERE " +
-                   "Fingerprint IN (SELECT Fingerprint from '" + 
-                   table_names['files'] + "' GROUP BY Fingerprint HAVING " +
-                   "1<COUNT(*)) ORDER BY Fingerprint")
+    # Remove any trailing OS separators and split into tokens
+    path_nodes = target.rstrip(os.sep).split(os.sep)
 
-    # Select all duplicate files
-    cursor.execute("SELECT * FROM TMP_DUPES")
-    for entry in cursor.fetchall():
-        count += 1
-        try:
-            # Attempt to append the current entry to the end of list for 
-            # its fingerprint
-            file_hash[entry[2]].append( (entry[0], entry[1], entry[3]) )
-        except KeyError:
-            # New entry
-            file_hash[entry[2]] = [ (entry[0], entry[1], entry[3]) ]
+    # Step through all nodes but the last one, probing database. Bail if we
+    # can't find one.
+    parent_id = -1
+    idx = 1
+    tmp_root = path_nodes[0]
+    while parent_id < 0:
+        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?", (parent_id, 
+                                                          tmp_root) )
+        tmp_row = cursor.fetchone()
+        if tmp_row == None:
+            if idx < len(path_nodes):
+                tmp_root = os.path.join(tmp_root, path_nodes[idx])
+                idx += 1
+            else:
+                logging.debug("Can't find root for %s!", target)
+                print target + " is not in database." + os.linesep
+                return 0
+        else:
+            parent_id = tmp_row[0]
 
-    # Populate directory lookup table so that we can reconstruct each path.
-    # We'll use a SQL to do the heavy lifting to avoid shipping data back and
-    # forth.
-    if 0 < count:
-        # Create temp table
-        cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
-                       "' (Path_ID INTEGER " +
-                       "PRIMARY KEY, Parent_ID INTEGER)")
-        # First pass, direct parents from files temp table
-        cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
-                       "' (Path_ID,Parent_ID) " +
-                       "SELECT Path_ID,Parent_ID FROM '" + table_names['dirs'] +
-                       "' WHERE Path_ID IN (SELECT Parent_ID FROM TMP_DUPES " +
-                       "GROUP BY Parent_ID)")
+    logging.debug("Found root '%s' in target '%s'", tmp_root, target)
 
-        # Now reconstruct tree
-        tree_info = reconstruct_tree(cursor)
-        logging.debug("Tree Info roots: %s", tree_info['roots'])
-        logging.debug("Tree Info dirs: %s", tree_info['dirs'])
+    for idx in xrange(idx, len(path_nodes)-1):
+        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?", (parent_id, 
+                                                          path_nodes[idx]) )
+        tmp_row = cursor.fetchone()
+        if tmp_row == None:
+            logging.debug("Can't find directory '%s' in root '%s'!", 
+                          path_nodes[idx], tmp_root)
+            print target + " is not in database." + os.linesep
+            return 0
+        else:
+            parent_id = tmp_row[0]
 
-        ## Display results
+    # Check dir table for last node
+    if idx < len(path_nodes):
+        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?", (parent_id, 
+                                                          path_nodes[-1]) )
+        tmp_row = cursor.fetchone()
 
-        # Open dupes file, if specified
-        fh = None
-        if 0 < len(cmd_args.output):
-            fh = io.open(cmd_args.dupes_file, 'wt')
-        elif cmd_args.quiet or (0 < len(cmd_args.log)):
-            fh = io.open(sys.stdout.fileno(), 'wt')
+    if (tmp_row != None):
+        # Retrieve all children
+        count = 0
+        parent_id = tmp_row[0]
+        print target + ":"
+        # dirs
+        cursor.execute("SELECT Name,Path_ID FROM '" + 
+                       table_names['dirs'] + "' WHERE Parent_ID=?", 
+                       (parent_id,) )
+        for row in cursor.fetchall():
+            print "    " + os.path.join(row[0],"") + " (" + str(row[1]) + ")"
+            count += 1
+        # files
+        cursor.execute("SELECT Name,File_ID FROM '" + 
+                       table_names['files'] + "' WHERE Parent_ID=?", 
+                       (parent_id,) )
+        for row in cursor.fetchall():
+            print "    " + row[0] + " (" + str(row[1]) + ")"
+            count += 1
+        return count
+    
+    # Try the file table
+    count = 0
+    if idx < len(path_nodes):
+        headers = ("ID", "Last Modified", "Fingerprint", "Size")
+        cursor.execute("SELECT File_ID,LastModified,Fingerprint,Size FROM '" + 
+                       table_names['files'] + "' WHERE Parent_ID=? AND Name=?", 
+                       (parent_id, path_nodes[-1]) )
+        for row in cursor.fetchall():
+            print target + ":"
+            for idx in xrange(0, len(headers)):
+                print "    " + headers[idx] + ": " + str(row[idx])
+                count += 1
+
+    # Check if we found a valid entry
+    if (count <= 0):
+        print target + " is not in database." + os.linesep
         
-        for fp in file_hash.keys():
-            # Send to log
-            logging.info(str(len(file_hash[fp])) + " files with Fingerprint 0x" 
-                         + fp + ":")
-
-            for entry in file_hash[fp]:
-                path_name = gen_db_url( tree_info, entry[2], entry[1] )
-                logging.info("    " + path_name + " (ID = " + str(entry[0]) + 
-                             ")")
-
-            # Send to file/STDOUT if appropriate
-            if not (fh == None):
-                fh.write(str(len(file_hash[fp])) + " files with Fingerprint 0x" 
-                         + fp + ":" + os.linesep)
-
-                for entry in file_hash[fp]:
-                    path_name = gen_db_url( tree_info, entry[2], entry[1] )
-                    logging.info("    " + path_name + " (ID = " + str(entry[0]) 
-                             + ")")
-                    fh.write("    " + path_name + os.linesep)
-
-        if not (fh == None):
-            fh.close()
-
-    logging.info("Duplicates found: " + str(count))
+    return count
 
 def write_db_fp(sha1, filename):
     """Helper function to write the specified sha1 to the specified filename.
@@ -965,15 +1042,19 @@ real_start_time = time.time()
 cmd_args = parse_args()
 
 # Set up logger
-setup_logger(cmd_args.quiet,cmd_args.debug,cmd_args.log)
+setup_logger(cmd_args.verbose,cmd_args.debug,cmd_args.log)
 logging.debug('Command-line arguments: %s', vars(cmd_args))
+
+ok_to_prune = False
 
 try:
     if cmd_args.subcommand == 'scan':
+        if cmd_args.prune:
+            ok_to_prune = True
         # Open fingerprint database
         with open_db(cmd_args.db) as db_conn:
             # Scan each specified root.
-            for root in cmd_args.root_dir:
+            for root in cmd_args.target:
                 if (process_root(root, db_conn) != 0):
                     break
                 
@@ -995,19 +1076,16 @@ try:
         #        check_duplicates(db_conn)
         
     elif cmd_args.subcommand == 'list':
-        print "\n\nWarning: Not supported yet!\n"
         # Open fingerprint database
-#        with open_db(cmd_args.db) as db_conn:
-#            db_browse(db_conn)
+        with open_db(cmd_args.db) as db_conn:
+            for target in cmd_args.target:
+                list_db(db_conn, target)
             
     if cmd_args.subcommand == 'delroot':
-        print "\n\nWarning: Not supported yet!\n"
+        ok_to_prune = True
         # Open fingerprint database
-#        with open_db(cmd_args.db) as db_conn:
-#            # Remove each specified root.
-#            for root in cmd_args.root_dir:
-#                if (del_root(root, db_conn) != 0):
-#                    break
+        with open_db(cmd_args.db) as db_conn:
+            del_roots(db_conn)
 
     elif cmd_args.subcommand == 'checkdb':
         check_db()
