@@ -19,6 +19,9 @@ import datetime
 table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 
                 'tmp_dirs' : 'tmp_dirs' }
 
+version = 1
+home_url = "https://github.com/jsbackus/simple_file_integrity_tool"
+
 #############
 # Functions #
 #############
@@ -28,7 +31,11 @@ def parse_args():
     
     # Create parser object
     parser = argparse.ArgumentParser(description=
-                                     'Tool verify file integrity.')
+                                     'Tool verify file integrity.' + os.linesep
+                                     + "For more information: " + home_url)
+    parser.add_argument('--version', action="version", 
+                        version="%(prog)s version "+str(version) + 
+                        " (c) 2013 Jeff Backus")
     parser.add_argument('-l', '--log', nargs='?', 
                         default='', help='log to file instead of console')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -166,20 +173,30 @@ def tokenize_path(path):
 
 def serialize_hash_of_lists( hash_of_lists ):
     """Generator to serialize a hash of lists. It goes through the keys of the
-    hash in no particular order, returning the items of each list one at a time.
+    hash in no particular order, returning the items of each list one at a time
+    as a tuple.
     """
     keys_list = hash_of_lists.keys()
-    cur_key = None
-    cur_list = None
+    cur_key = ""
+    cur_idx = -1
     while True:
-        if cur_list == None:
-            if cur_key == None:
-                if 0 < len(keys_list):
-                    cur_key = keys_list.pop
-                else:
-                    break
-            cur_list = hash_of_lists[ cur_key ]
-        yield cur_list.pop
+        logging.debug("size of keys: %s, cur_key: %s, cur_idx: %s", 
+                      len(keys_list), cur_key, cur_idx)
+        if cur_idx < 0 or len(hash_of_lists[ cur_key ]) <= cur_idx:
+            if 0 < len(keys_list):
+                cur_key = keys_list.pop()
+            else:
+                break
+            cur_idx = 0
+            logging.debug("New list: %s", hash_of_lists[ cur_key ])
+        if cur_idx < len(hash_of_lists[ cur_key ]):
+            tmp = (hash_of_lists[ cur_key ][ cur_idx ],)
+            logging.debug("Yielding %s", tmp)
+            yield tmp
+            cur_idx += 1
+            #yield (cur_list.pop(),)
+        else:
+            break
 
 def read_in_chunks(file_obj, chunk_size=1024*1024):
     """Generator to read data from the specified file in chunks.
@@ -912,6 +929,8 @@ def check_dupe_trees(db_conn):
     dirs_by_parent = dict()
     skip_files = cmd_args.nofilefp and cmd_args.nofilename
     while not done:
+        logging.debug("dirs_by_parent: %s", dirs_by_parent)
+
         # Grab all files who's parent is represented in the temporary table
         if not skip_files:
             cols = "Parent_ID,Name"
@@ -923,6 +942,7 @@ def check_dupe_trees(db_conn):
                            table_names['tmp_dirs'] + "')")
             tmp_file_list = dict()
             for entry in cursor.fetchall():
+                logging.debug("Processing file entry: %s", entry)
                 if cmd_args.nofilefp:
                     val = 1
                 else:
@@ -931,6 +951,7 @@ def check_dupe_trees(db_conn):
                     tmp_file_list[ entry[0] ] = dict()
                 if not tmp_file_list[ entry[0] ].has_key( entry[1] ):
                     tmp_file_list[ entry[0] ][ entry[1] ] = val
+        logging.debug("tmp_file_list: %s", tmp_file_list)
 
         # Grab info for all directories represented in the temporary table
         cursor.execute("SELECT Path_ID,Name,Parent_ID FROM '" + 
@@ -941,6 +962,7 @@ def check_dupe_trees(db_conn):
         tmp_dirs_by_parent = dict()
         tmp_dirs_by_fp = dict()
         for entry in cursor.fetchall():
+            logging.debug("Processing dir entry %s", entry)
             dir_fp = hashlib.sha1()
             # Add directory name to hash, if appropriate
             if not cmd_args.nodirname:
@@ -948,7 +970,7 @@ def check_dupe_trees(db_conn):
             
             # Sort all files associated with this directory then add, if
             # appropriate
-            if not skip_files:
+            if not skip_files and tmp_file_list.has_key( entry[0] ):
                 for name in sorted( tmp_file_list[ entry[0] ].keys() ):
                     if not cmd_args.nofilename:
                         dir_fp.update( name )
@@ -957,7 +979,8 @@ def check_dupe_trees(db_conn):
 
             # Sort all directories associated with this directory the add, if
             # appropriate
-            if (not cmd_args.nosubdirfp) and (not cmd_args.nosubdirname):
+            if (not cmd_args.nosubdirfp) and (not cmd_args.nosubdirname) and \
+                    dirs_by_parent.has_key( entry[0] ):
                for name in sorted( dirs_by_parent[ entry[0] ].keys() ):
                     if not cmd_args.nosubdirname:
                         dir_fp.update( name )
@@ -966,6 +989,8 @@ def check_dupe_trees(db_conn):
 
             # Finalize and convert to hex
             dir_fp = dir_fp.hexdigest()
+            logging.debug("Fingerprint for directory '%s' = '0x%s'", 
+                          entry[1], dir_fp)
         
             # Store for later
             if not tmp_dirs_by_parent.has_key( entry[2] ):
@@ -981,13 +1006,19 @@ def check_dupe_trees(db_conn):
         # Update dirs_by_fp with entries in tmp_dirs_by_fp that have more than
         # one entry.
         for fp in tmp_dirs_by_fp.keys():
+            logging.debug("Fingerprint '0x%s' has items: %s", fp, 
+                          tmp_dirs_by_fp[ fp ])
             if 1 < len(tmp_dirs_by_fp[ fp ]):
                 if not dirs_by_fp.has_key( fp ):
                     dirs_by_fp[ fp ] = tmp_dirs_by_fp[ fp ]
+                    logging.debug("Storing fingerprint '0x%s' = %s", fp,
+                                  dirs_by_fp[ fp ])
                 else:
                     logger.debug("Not creating a new entry in dirs_by_fp. " +
                                  "Shouldn't this be an error?")
                     dirs_by_fp[ fp ] += tmp_dirs_by_fp[ fp ]
+            else:
+                logging.debug("Skipping fingerprint '0x%s'", fp)
 
         # Replace dirs_by_parent contents with tmp_dirs_by_parent.
         dirs_by_parent = tmp_dirs_by_parent
@@ -1013,11 +1044,20 @@ def check_dupe_trees(db_conn):
     # Recollect parent info for later
     cursor.execute("SELECT Path_ID,Parent_ID,Name FROM '" + table_names['dirs']
                    + "' WHERE Path_ID IN (SELECT Path_ID FROM '" +
-                   table_names['tmp_dirs'] + "'")
+                   table_names['tmp_dirs'] + "')")
     tmp_path_to_parent = dict()
     for entry in cursor.fetchall():
-        tmp_path_info[ entry[0] ] = (entry[1], entry[2])
-    
+        tmp_path_to_parent[ entry[0] ] = (entry[1], entry[2])
+
+    logging.debug("Generator:")
+    for entry in serialize_hash_of_lists( dirs_by_fp ):
+        logging.debug("  %s", entry)
+
+    logging.debug("dirs_by_fp:")
+    for entry in dirs_by_fp.keys():
+        logging.debug("  '0x%s' = %s", entry, dirs_by_fp[ entry ])
+    logging.debug("tmp_path_to_parent.keys(): %s", tmp_path_to_parent.keys())
+
     # Now reconstruct tree
     tree_info = reconstruct_tree(cursor)
 
