@@ -19,7 +19,7 @@ import datetime
 table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 
                 'tmp_dirs' : 'tmp_dirs' }
 
-version = 1
+version = 0
 home_url = "https://github.com/jsbackus/simple_file_integrity_tool"
 
 #############
@@ -180,21 +180,17 @@ def serialize_hash_of_lists( hash_of_lists ):
     cur_key = ""
     cur_idx = -1
     while True:
-        logging.debug("size of keys: %s, cur_key: %s, cur_idx: %s", 
-                      len(keys_list), cur_key, cur_idx)
         if cur_idx < 0 or len(hash_of_lists[ cur_key ]) <= cur_idx:
             if 0 < len(keys_list):
                 cur_key = keys_list.pop()
             else:
                 break
             cur_idx = 0
-            logging.debug("New list: %s", hash_of_lists[ cur_key ])
         if cur_idx < len(hash_of_lists[ cur_key ]):
             tmp = (hash_of_lists[ cur_key ][ cur_idx ],)
-            logging.debug("Yielding %s", tmp)
+#            logging.debug("Yielding %s", tmp)
             yield tmp
             cur_idx += 1
-            #yield (cur_list.pop(),)
         else:
             break
 
@@ -710,9 +706,11 @@ def reconstruct_tree(cursor):
     
     ret_val = { "roots" : {}, "dirs" : {} }
     done = False
-
+    first_pass = True
     while not done:
-        if ( 0 < cursor.rowcount ):
+        logging.debug("Reconstructing tree: First Pass? %s, Row Count: %s", 
+                      str(first_pass), str(cursor.rowcount))
+        if first_pass or ( 0 < cursor.rowcount ):
             cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
                            "' (Path_ID,Parent_ID" +
                            ") SELECT Path_ID,Parent_ID FROM '" + 
@@ -721,6 +719,7 @@ def reconstruct_tree(cursor):
                            table_names['tmp_dirs'] + "' WHERE Parent_ID NOT " +
                            "IN (SELECT Path_ID FROM '" + 
                            table_names['tmp_dirs'] + "'))")
+            first_pass = False
         else:
             done = True
 
@@ -893,7 +892,7 @@ def check_dupe_trees(db_conn):
 #    dir_hash = dict()
 
     # Count of duplicates
-#    count = 0
+    count = 0
 
     # Algorithm:
     # 1. Start with all directories that do not have any children directories
@@ -1049,15 +1048,6 @@ def check_dupe_trees(db_conn):
     for entry in cursor.fetchall():
         tmp_path_to_parent[ entry[0] ] = (entry[1], entry[2])
 
-    logging.debug("Generator:")
-    for entry in serialize_hash_of_lists( dirs_by_fp ):
-        logging.debug("  %s", entry)
-
-    logging.debug("dirs_by_fp:")
-    for entry in dirs_by_fp.keys():
-        logging.debug("  '0x%s' = %s", entry, dirs_by_fp[ entry ])
-    logging.debug("tmp_path_to_parent.keys(): %s", tmp_path_to_parent.keys())
-
     # Now reconstruct tree
     tree_info = reconstruct_tree(cursor)
 
@@ -1071,6 +1061,7 @@ def check_dupe_trees(db_conn):
         elif not cmd_args.verbose or (0 < len(cmd_args.log)):
             fh = io.open(sys.stdout.fileno(), 'wt')
         
+        count = 0
         for fp in dirs_by_fp.keys():
             # Send to log
             logging.info(str(len(dirs_by_fp[fp])) + " dirs with Fingerprint 0x" 
@@ -1078,7 +1069,7 @@ def check_dupe_trees(db_conn):
 
             for entry in dirs_by_fp[fp]:
                 tmp_info = tmp_path_to_parent[ entry ]
-                path_name = gen_db_url( tree_info, tmp_info[1], tmp_info[0])
+                path_name = gen_db_url( tree_info, tmp_info[0], tmp_info[1])
                 logging.info("    " + path_name + " (ID = " + str(entry) + 
                              ")")
 
@@ -1089,9 +1080,10 @@ def check_dupe_trees(db_conn):
 
                 for entry in dirs_by_fp[fp]:
                     tmp_info = tmp_path_to_parent[ entry ]
-                    path_name = gen_db_url( tree_info, tmp_info[1], tmp_info[0])
+                    path_name = gen_db_url( tree_info, tmp_info[0], tmp_info[1])
                     fh.write("    " + path_name + os.linesep)
 
+            count += 1
         if not (fh == None):
             fh.close()
 
