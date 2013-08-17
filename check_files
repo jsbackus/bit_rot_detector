@@ -1120,6 +1120,93 @@ def del_roots(db_conn):
     logging.info("    Files: %s", file_stats[4])
     logging.info('    Directories: %s', dir_stats[4])
 
+def resolve_target(target, cursor):
+    """Attempts to resolve the specified target into root name + subdir. Returns
+    ???
+    """
+
+    ret_val = None
+
+    # Remove any trailing OS separators and split into tokens
+    path_nodes = target.rstrip(os.sep).split(os.sep)
+
+    # Step through all nodes but the last one, probing database. Bail if we
+    # can't find one.
+    parent_id = -1
+    idx = 1
+    tmp_root = path_nodes[0]
+    while parent_id < 0:
+        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?", (parent_id, 
+                                                          tmp_root) )
+        tmp_row = cursor.fetchone()
+        if tmp_row == None:
+            if idx < len(path_nodes):
+                tmp_root = os.path.join(tmp_root, path_nodes[idx])
+                idx += 1
+            else:
+                logging.debug("Can't find root for %s!", target)
+                return ret_val
+        else:
+            parent_id = tmp_row[0]
+
+    logging.debug("Found root '%s' in target '%s'", tmp_root, target)
+    ret_val = (tmp_root, parent_id, None, None)
+
+    for idx in xrange(idx, len(path_nodes)-1):
+        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?", (parent_id, 
+                                                          path_nodes[idx]) )
+        tmp_row = cursor.fetchone()
+        if tmp_row == None:
+            logging.debug("Can't find directory '%s' in root '%s'!", 
+                          path_nodes[idx], tmp_root)
+            return ret_val
+        else:
+            parent_id = tmp_row[0]
+
+    # Check dir table for last node
+    if idx < len(path_nodes):
+        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+                       "' WHERE Parent_ID=? AND Name=?", (parent_id, 
+                                                          path_nodes[-1]) )
+        tmp_row = cursor.fetchone()
+
+    # Return results
+    if (tmp_row != None):
+        
+        parent_id = tmp_row[0]
+        print target + ":"
+        # dirs
+        cursor.execute("SELECT Name,Path_ID FROM '" + 
+                       table_names['dirs'] + "' WHERE Parent_ID=?", 
+                       (parent_id,) )
+        for row in cursor.fetchall():
+            print "    " + os.path.join(row[0],"") + " (" + str(row[1]) + ")"
+            count += 1
+        # files
+        cursor.execute("SELECT Name,File_ID FROM '" + 
+                       table_names['files'] + "' WHERE Parent_ID=?", 
+                       (parent_id,) )
+        for row in cursor.fetchall():
+            print "    " + row[0] + " (" + str(row[1]) + ")"
+            count += 1
+        return count
+    
+    # Try the file table
+    count = 0
+    if idx < len(path_nodes):
+        headers = ("ID", "Last Modified", "Fingerprint", "Size")
+        cursor.execute("SELECT File_ID,LastModified,Fingerprint,Size FROM '" + 
+                       table_names['files'] + "' WHERE Parent_ID=? AND Name=?", 
+                       (parent_id, path_nodes[-1]) )
+        for row in cursor.fetchall():
+            print target + ":"
+            for idx in xrange(0, len(headers)):
+                print "    " + headers[idx] + ": " + str(row[idx])
+                count += 1
+
+
 def list_db(db_conn, target):
     """Lists all items that have target has a parent or display info on file if
     target is a file.
