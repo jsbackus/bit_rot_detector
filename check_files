@@ -309,7 +309,7 @@ def get_root_from_db(cursor, rootdir):
     ret_val = -1
 
     # Search the database for this root by name. If it doesn't exist, add it.
-    cursor.execute("SELECT Path_ID, LastChecked from '" + table_names['dirs'] + 
+    cursor.execute("SELECT Path_ID, LastChecked FROM '" + table_names['dirs'] + 
                    "' WHERE Name=? AND Parent_ID=?", (rootdir,-1))
     row = cursor.fetchone()
     if row == None:
@@ -496,7 +496,7 @@ def add_tuples(t1, t2):
     """
     return map(operator.add, t1, t2)
 
-def process_root(rootdir, db_conn):
+def scan_target(target, db_conn):
     """Scans the specified root, checking all files and directories that
     belong to it.
     Returns 0 if successful or 1 if error.
@@ -504,14 +504,21 @@ def process_root(rootdir, db_conn):
 
     # Get DB cursor object
     cursor = db_conn.cursor()
-    
-    # Remove any trailing OS separators
-    rootdir = rootdir.rstrip(os.sep)
-    
-    root_info = get_root_from_db(cursor, rootdir)
 
-    return crawl_tree(rootdir, root_info[0], root_info[1], cursor)
+    # Attempt to resolve the 
+    target_info = resolve_target(target, cursor)
 
+    # If nothing returned, assume the specified target is a new root.
+    if target_info == None:
+        root_info = get_root_from_db(cursor, target)
+        return crawl_tree(target, root_info[0], root_info[1], cursor)
+    else:
+        # Otherwise, start crawling in the specified subtree
+        cursor.execute("SELECT LastChecked FROM '" + table_names['dirs'] + 
+                       "' WHERE Path_ID=?", (target_info[3],))
+        row = cursor.fetchone()
+        return crawl_tree(target, target_info[3], row[0], cursor)
+        
 def crawl_tree(rootdir, dir_id, last_checked, cursor):
     """Crawls the specified directory, processing all files that it finds.
     Returns 0 if successful or 1 if error.
@@ -645,7 +652,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
 
     # Print stats!
     action_names = ('added', 'good', 'updated', 'BAD', 'MISSING', 'Skipped')
-    logging.info('Finished processing root \'' + root + '\': ')
+    logging.info('Finished processing root \'' + rootdir + '\': ')
     logging.info('    Files:')
     for idx in range(0,len(action_names)):
         logging.info('      %s: %s', action_names[idx], file_stats[idx])
@@ -1353,8 +1360,8 @@ try:
         # Open fingerprint database
         with open_db(cmd_args.db) as db_conn:
             # Scan each specified root.
-            for root in cmd_args.target:
-                if (process_root(root, db_conn) != 0):
+            for target in cmd_args.target:
+                if (scan_target(target, db_conn) != 0):
                     break
                 
     elif cmd_args.subcommand == 'dupe_files':
@@ -1371,7 +1378,7 @@ try:
         print "\n\nWarning: Not supported yet!\n"
         # Open fingerprint database
         #    with open_db(cmd_args.db) as db_conn:
-        #        check_dupe_files(db_conn)
+        #        diff_roots(db_conn)
         
     elif cmd_args.subcommand == 'list':
         # Open fingerprint database
