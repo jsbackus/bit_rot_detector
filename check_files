@@ -163,6 +163,7 @@ def setup_logger(verbose_mode, debug_mode, filename=''):
     # Set log level
     logging.getLogger().setLevel(logLevel)
 
+# \/ \/ Consider removing this function \/ \/
 def tokenize_path(path):
     """Generator to tokenize a path via os.path.split. 
     Note: tokens will return in reverse order!
@@ -174,7 +175,9 @@ def tokenize_path(path):
             break
         tmp_path = elms[0]
         yield elms[1]
+# /\ /\ Consider removing this function /\ /\
 
+# \/ \/ Consider removing this function \/ \/
 def serialize_hash_of_lists( hash_of_lists ):
     """Generator to serialize a hash of lists. It goes through the keys of the
     hash in no particular order, returning the items of each list one at a time
@@ -197,6 +200,7 @@ def serialize_hash_of_lists( hash_of_lists ):
             cur_idx += 1
         else:
             break
+# /\ /\ Consider removing this function /\ /\
 
 def read_in_chunks(file_obj, chunk_size=1024*1024):
     """Generator to read data from the specified file in chunks.
@@ -535,6 +539,26 @@ def add_tuples(t1, t2):
     tuple.
     """
     return map(operator.add, t1, t2)
+
+def add_dicts(d1, d2):
+    """Properly vector-adds the specified dicts-of-numbers and returns the 
+    result.
+    """
+    ret_val = dict()
+    for key in d1.keys():
+        if d2.has_key( key ):
+            ret_val[ key ] = d1[ key ] + d2[ key ]
+        else:
+            ret_val[ key ] = d1[ key ]
+
+    for key in d1.keys():
+        if not ret_val.has_key( key ):
+            if d1.has_key( key ):
+                ret_val[ key ] = d1[ key ] + d2[key]
+            else:
+                ret_val[ key ] = d2[ key ]
+
+    return ret_val
 
 def scan_target(target, db_conn):
     """Scans the specified root, checking all files and directories that
