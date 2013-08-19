@@ -116,6 +116,8 @@ def parse_args():
     checkdb_mode = subparsers.add_parser('checkdb', 
                                          help='Fingerprints the database in ' +
                                          'order to verify it.')
+    checkdb_mode.add_argument('-P', '--progress', action='store_true',
+                              help='Displays progress meter.')
 
     # list subparser
     list_mode = subparsers.add_parser('list',
@@ -1330,7 +1332,8 @@ def check_db():
     # Generate fingerprint
     fp_cpu_time = time.clock()
     fp_real_time = time.time()
-    fp = calc_fingerprint(fullname)
+    db_stat = os.stat(fullname)
+    fp = calc_fingerprint(fullname, db_stat.st_size)
     logging.debug("Database '%s' has fingerprint '0x%s'", fullname, fp)
     logging.debug("File '%s' finished in %.4f seconds (%.4f CPU seconds)", 
                   fullname, time.time() - fp_real_time, 
@@ -1353,7 +1356,6 @@ def check_db():
                           "fingerprint.")
 
             # Check modification times.
-            db_stat = os.stat(fullname)
             fp_stat = os.stat(fp_file)
             if fp_stat.st_mtime < db_stat.st_mtime:
                 # Database has been touched since last fingerprint. Update.
