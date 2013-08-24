@@ -139,29 +139,54 @@ def setup_logger(verbose_mode, debug_mode, filename=''):
     """Sets up the global logging object.
     """
 
-    # Determine log level
-    if debug_mode:
-        logLevel = logging.DEBUG
-    elif verbose_mode:
-        logLevel = logging.INFO
-    else:
-        logLevel = logging.WARNING
+    # Set up root logger
+    rootLogger = logging.getLogger()
+    rootLogger.setLevel(logging.DEBUG)
 
-    # Start logger with default level
-    logging.basicConfig(format='[%(asctime)s %(levelname)s] %(message)s', 
-                        datefmt='%Y-%m-%d %I:%M:%S', level=logging.INFO,
-                        filename=filename)
+    # Set up formatter info
+    formatter_str = '[%(asctime)s %(levelname)s] %(message)s'
+    formatter_date = '%Y-%m-%d %I:%M:%S'
 
-    # Denote start of logging, if using a file
+    formatter = logging.Formatter(formatter_str, formatter_date)
+
+    # Set up file logger, if appropriate
     if 0 < len(filename):
+        fh = logging.FileHandler(filename)
+        
+        # Determine log level. For files, assume INFO
+        if debug_mode:
+            fh.setLevel(logging.DEBUG)
+        else:
+            fh.setLevel(logging.INFO)
+
+        # Set formatter
+        fh.setFormatter(formatter)
+
+        # Add to root logger
+        rootLogger.addHandler(fh)
+
+        # Log file-only messages
         logging.info('Logging started')
 
-    # If logging debug messages, indicate so in file.
-    if debug_mode:
-        logging.info('Logging debug messages is enabled')
+        if debug_mode:
+            logging.info('Logging debug messages is enabled')
+        
+    # Set up console logger
+    con = logging.StreamHandler()
+    # Set formatter
+    formatter = logging.Formatter('\r' + formatter_str, formatter_date)
+    con.setFormatter(formatter)
 
-    # Set log level
-    logging.getLogger().setLevel(logLevel)
+    # Set level
+    if debug_mode:
+        con.setLevel(logging.DEBUG)
+    elif verbose_mode:
+        con.setLevel(logging.INFO)
+    else:
+        con.setLevel(logging.WARNING)
+
+    # Add to root logger
+    rootLogger.addHandler(con)
 
 # \/ \/ Consider removing this function \/ \/
 def tokenize_path(path):
