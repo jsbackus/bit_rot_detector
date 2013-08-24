@@ -286,10 +286,12 @@ def calc_fingerprint(filename, file_size=0):
     return result.hexdigest()
     
 def process_file(node, filename, mode, file_db_dict, cursor):
-    """Processes the specified file.
-    TO DO
-    Returns a tuple that can be used to update stats. 
-    Order: (added, good, updated, bad, missing, skipped)
+    """Processes the specified file. This function is responsible for
+    calculating the fingerprint of the file and comparing it against the
+    database. If the fingerprints don't match, the modification times are
+    compared.
+
+    Returns a dict that can be used to update stats. 
     """
 
     # Concatenate path and filename
@@ -302,9 +304,13 @@ def process_file(node, filename, mode, file_db_dict, cursor):
     fp_cpu_time = time.clock()
     fp_real_time = time.time()
     fp = calc_fingerprint(fullname, mode.st_size)
+    fp_cpu_time = time.clock() - fp_cpu_time
+    fp_real_time = time.time() - fp_real_time
     logging.debug('File \'%s\' finished in %.4f seconds (%.4f CPU seconds)', 
-                  fullname, time.time() - fp_real_time, 
-                  time.clock() - fp_cpu_time)
+                  fullname, fp_real_time, fp_cpu_time)
+
+    # Update stats with throughput info
+    ret_val = { "bytes" : mode.st_size, "time" : fp_real_time }
 
     # Attempt to access this file's entry in the DB dict. If we throw an
     # exception, we'll need to add the file to the database. If no exception
@@ -336,14 +342,16 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                 update_file(db_id, fp, mode, cursor)
 
                 # Return dict indicating update
-                return { 'updated' : 1 }
+                ret_val['updated'] = 1
+                return ret_val
             else:
                 logging.warning('File \'' + fullname + '\' does not ' +
                                 'match fingerprint in database ' +
                                 'and is not newer. File could be damaged!')
 
                 # Return dict indicating problem
-                return { 'bad' : 1 }
+                ret_val['bad'] = 1
+                return ret_val
         else:
             logging.debug('File \'' + fullname + '\' matches ' +
                           'fingerprint in database')
@@ -355,19 +363,22 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                                 'file \'' + fullname + 
                                 '\'! File could be damaged!')
                 # Return dict indicating problem
-                return { 'bad' : 1 }
+                ret_val['bad'] = 1
+                return ret_val
             else:
                 logging.debug('File \'' + fullname + 
                               '\' matches file size in database')
                 # Return dict indicating file ok
-                return { 'good' : 1 }
+                ret_val['good'] = 1
+                return ret_val
 
     except KeyError:
         # File doesn't exist in database - add
         add_file(filename, fp, mode, node[1], cursor)
 
         # Return dict indicating addition
-        return { 'added' : 1 }
+        ret_val['added'] = 1
+        return ret_val
 
 def get_root_from_db(cursor, rootdir):
     """Searches the database using the specified cursor object for the first
@@ -614,7 +625,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
 
     # Order: (added, good, updated, bad, missing, skipped)
     file_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
-                   'missing' : 0, 'skipped' : 0}
+                   'missing' : 0, 'skipped' : 0, 'bytes' : 0, 'time' : 0.0 }
     dir_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
                   'missing' : 0, 'skipped' : 0}
 
@@ -679,6 +690,8 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                                                                 dir_db_data[ \
                                         'file_entries'],
                                                                 cursor))
+                            # Update number of bytes read
+                            
                         else:
                             file_stats['skipped'] += 1
                         
@@ -740,6 +753,21 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     logging.info('    Directories:')
     for action in action_names:
         logging.info('      %s: %s', action, dir_stats[action.lower()])
+
+    speed_info = str(file_stats['bytes']) + " bytes processed in "
+    speed_info += '{:03.2f}'.format(file_stats['time'])
+    speed_info += ' seconds for an average speed of '
+
+    avg_speed = file_stats['bytes'] / file_stats['time']
+    if 1e6 < avg_speed:
+        speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'MB/s'
+    elif 1e3 < avg_speed:
+        speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'KB/s'
+    else:
+        speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'B/s'
+
+    logging.info(speed_info)
+                 
 
     # Return error code
     return error_flag
