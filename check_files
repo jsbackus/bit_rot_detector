@@ -310,15 +310,15 @@ def process_file(node, filename, mode, file_db_dict, cursor):
 
                 update_file(db_id, fp, mode, cursor)
 
-                # Return tuple indicating update
-                return (0,0,1,0,0,0)
+                # Return dict indicating update
+                return { 'updated' : 1 }
             else:
                 logging.warning('File \'' + fullname + '\' does not ' +
                                 'match fingerprint in database ' +
                                 'and is not newer. File could be damaged!')
 
-                # Return tuple indicating problem
-                return (0,0,0,1,0,0)
+                # Return dict indicating problem
+                return { 'bad' : 1 }
         else:
             logging.debug('File \'' + fullname + '\' matches ' +
                           'fingerprint in database')
@@ -329,20 +329,20 @@ def process_file(node, filename, mode, file_db_dict, cursor):
                 logging.warning('File sizes do not match for ' +
                                 'file \'' + fullname + 
                                 '\'! File could be damaged!')
-                # Return tuple indicating problem
-                return (0,0,0,1,0,0)
+                # Return dict indicating problem
+                return { 'bad' : 1 }
             else:
                 logging.debug('File \'' + fullname + 
                               '\' matches file size in database')
-                # Return tuple indicating file ok
-                return (0,1,0,0,0,0)
+                # Return dict indicating file ok
+                return { 'good' : 1 }
 
     except KeyError:
         # File doesn't exist in database - add
         add_file(filename, fp, mode, node[1], cursor)
 
-        # Return tuple indicating addition
-        return (1,0,0,0,0,0)
+        # Return dict indicating addition
+        return { 'added' : 1 }
 
 def get_root_from_db(cursor, rootdir):
     """Searches the database using the specified cursor object for the first
@@ -480,8 +480,7 @@ def prune_files(path, file_data, cursor):
             else:
                 logging.warning("File '%s' no longer exists in directory '%s'!",
                                 item, path)
-
-    return (0, 0, 0, 0, len(file_data), 0 )
+    return { 'missing' : len(file_data) }
 
 def prune_dirs(path, dir_data, cursor):
     """This routine is responsible for iterating over the list of directories in
@@ -492,7 +491,8 @@ def prune_dirs(path, dir_data, cursor):
     """
 
     done = False
-    ret_val = [ (0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0) ]
+#    ret_val = [ (0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0) ]
+    ret_val = [ { 'missing' : 0}, { 'missing' : 0 } ]
     item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
 
     # Build a queue like in crawl_tree of all directories to be pruned.
@@ -504,7 +504,7 @@ def prune_dirs(path, dir_data, cursor):
             dir_queue.append( ( path, item, item_data['dir_entries'][item]) )
             
         # Prune any files
-        ret_val[0] = add_tuples(ret_val[0], prune_files(path, item_data[ \
+        ret_val[0] = add_dicts(ret_val[0], prune_files(path, item_data[ \
                     'file_entries'], cursor))
         
         if 0 < len(dir_queue):
@@ -528,7 +528,7 @@ def prune_dirs(path, dir_data, cursor):
                 logging.warning("Subdirectory '%s' no longer exists in " +
                                 "directory '%s'!", node[1], node[0])
 
-            ret_val[1] = add_tuples(ret_val[1], (0, 0, 0, 0, 1, 0))
+            ret_val[1]['missing'] += 1
         else:
             done = True
 
@@ -579,9 +579,9 @@ def scan_target(target, db_conn):
     else:
         # Otherwise, start crawling in the specified subtree
         cursor.execute("SELECT LastChecked FROM '" + table_names['dirs'] + 
-                       "' WHERE Path_ID=?", (target_info[3],))
+                       "' WHERE Path_ID=?", (target_info['dir_id'],))
         row = cursor.fetchone()
-        return crawl_tree(target, target_info[3], row[0], cursor)
+        return crawl_tree(target, target_info['dir_id'], row[0], cursor)
         
 def crawl_tree(rootdir, dir_id, last_checked, cursor):
     """Crawls the specified directory, processing all files that it finds.
@@ -595,8 +595,10 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     dir_queue = [(rootdir, dir_id, last_checked)]
 
     # Order: (added, good, updated, bad, missing, skipped)
-    file_stats = (0,0,0,0,0,0)
-    dir_stats = (0,0,0,0,0,0)
+    file_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
+                   'missing' : 0, 'skipped' : 0}
+    dir_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
+                  'missing' : 0, 'skipped' : 0}
 
     error_flag = 0
 
@@ -655,15 +657,14 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                         # Process file and update stats, unless we're skipping
                         # files in this directory
                         if check_files:
-                            file_stats = add_tuples(file_stats, 
-                                                    process_file(node, entry, 
-                                                                 entry_stat, 
-                                                                 dir_db_data[ \
+                            file_stats = add_dicts(file_stats, 
+                                                   process_file(node, entry, 
+                                                                entry_stat, 
+                                                                dir_db_data[ \
                                         'file_entries'],
-                                                                 cursor))
+                                                                cursor))
                         else:
-                            file_stats = add_tuples(file_stats, 
-                                                    (0, 0, 0, 0, 0, 1))
+                            file_stats['skipped'] += 1
                         
                     elif stat.S_ISDIR(entry_stat.st_mode):
                         # Attempt to push directory onto stack using data from 
@@ -680,7 +681,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                                           '\' as seen.')
                             
                             # Update stats
-                            dir_stats = add_tuples(dir_stats, (0,1,0,0,0,0))
+                            dir_stats['good'] += 1
                         except KeyError:
                             # Item not in list. Add then append to queue.
                             tmp_data = add_dir(entry, node[1], cursor)
@@ -688,19 +689,19 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                                                tmp_data[1]) )
 
                             # Update stats.
-                            dir_stats = add_tuples(dir_stats, (1,0,0,0,0,0))
+                            dir_stats['added'] += 1
 
                 except OSError as e:
                     logging.warning("OSError({0}): {1}".format(e.errno, 
                                                                e.strerror) +
                                     " on file '" + entry_full_name + "'")
 
-            file_stats = add_tuples(file_stats, prune_files(node[0], 
-                                                            dir_db_data[ \
+            file_stats = add_dicts(file_stats, prune_files(node[0], 
+                                                           dir_db_data[ \
                         'file_entries'], cursor))
             tmp_stats = prune_dirs(node[0], dir_db_data['dir_entries'], cursor)
-            file_stats = add_tuples(file_stats, tmp_stats[0])
-            dir_stats = add_tuples(dir_stats, tmp_stats[1])
+            file_stats = add_dicts(file_stats, tmp_stats[0])
+            dir_stats = add_dicts(dir_stats, tmp_stats[1])
 
             # Mark this directory has recently checked, if appropriate
             if check_files:
@@ -715,14 +716,14 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     db_conn.commit()
 
     # Print stats!
-    action_names = ('added', 'good', 'updated', 'BAD', 'MISSING', 'Skipped')
+    action_names = ('added', 'good', 'updated', 'BAD', 'MISSING', 'skipped')
     logging.info('Finished processing root \'' + rootdir + '\': ')
     logging.info('    Files:')
-    for idx in range(0,len(action_names)):
-        logging.info('      %s: %s', action_names[idx], file_stats[idx])
+    for action in action_names:
+        logging.info('      %s: %s', action, file_stats[action.lower()])
     logging.info('    Directories:')
-    for idx in range(0,len(action_names)):
-        logging.info('      %s: %s', action_names[idx], dir_stats[idx])
+    for action in action_names:
+        logging.info('      %s: %s', action, dir_stats[action.lower()])
 
     # Return error code
     return error_flag
@@ -1164,8 +1165,8 @@ def del_roots(db_conn):
     """Attempts to remove the specified root
     """
 
-    file_stats = (0,0,0,0,0,0)
-    dir_stats = (0,0,0,0,0,0)
+    file_stats = { 'missing' : 0 }
+    dir_stats = { 'missing' : 0 }
 
     # Get DB cursor object
     cursor = db_conn.cursor()
@@ -1180,22 +1181,21 @@ def del_roots(db_conn):
     
         # Delete tree
         tmp_stats = prune_dirs(target, dir_db_data['dir_entries'], cursor)
-        file_stats = add_tuples(file_stats, tmp_stats[0])
-        dir_stats = add_tuples(dir_stats, tmp_stats[1])
+        file_stats = add_dicts(file_stats, tmp_stats[0])
+        dir_stats = add_dicts(dir_stats, tmp_stats[1])
 
     # Commit
     db_conn.commit()
 
     # Print stats!
     logging.info("Finished deleting target(s) '%s': ", cmd_args.target)
-    logging.info("    Files: %s", file_stats[4])
-    logging.info('    Directories: %s', dir_stats[4])
+    logging.info("    Files: %s", file_stats['missing'])
+    logging.info('    Directories: %s', dir_stats['missing'])
 
 def resolve_target(target, cursor):
     """Attempts to resolve the specified target into root name + subdir. Returns
-    a tuple: (root name, root id, dir name, dir id, file name, file id)
-    Nonappicable fields will be None. If the root cannot be resolved, None is
-    returned.
+    a dict containing the root/dir/file names and IDs. Nonappicable fields will 
+    be None. If the root cannot be resolved, None is returned.
     """
 
     ret_val = None
@@ -1224,7 +1224,8 @@ def resolve_target(target, cursor):
             parent_id = tmp_row[0]
 
     logging.debug("Found root '%s' in target '%s'", tmp_root, target)
-    ret_val = (tmp_root, parent_id, None, None, None, None)
+    ret_val = {'root_name' : tmp_root, 'root_id' : parent_id, 'dir_name' : None,
+               'dir_id' : None, 'file_name' : None, 'file_id' : None }
 
     for idx in xrange(idx, len(path_nodes)-1):
         cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
@@ -1248,10 +1249,11 @@ def resolve_target(target, cursor):
     # Return results
     if (tmp_row != None):
         # Found entry in directories table.
-        ret_val = (ret_val[0], ret_val[1], path_nodes[-1], tmp_row[0], None,
-                   None)
+        ret_val['dir_name'] = path_nodes[-1]
+        ret_val['dir_id'] = tmp_row[0]
         logging.debug("Found target directory '%s' (%s) in root '%s' (%s)", 
-                      ret_val[2], ret_val[3], ret_val[0], ret_val[1])
+                      ret_val['dir_name'], ret_val['dir_id'], 
+                      ret_val['root_name'], ret_val['root_id'])
 
     else:
         # Try the file table
@@ -1260,13 +1262,15 @@ def resolve_target(target, cursor):
                        (parent_id, path_nodes[-1]) )
         tmp_row = cursor.fetchone()
         if (tmp_row != None):
-            ret_val = (ret_val[0], ret_val[1], None, parent_id, path_nodes[-1], 
-                       tmp_row[0])
+            ret_val['dir_id'] = parent_id
+            ret_val['file_name'] = path_nodes[-1]
+            ret_val['file_id'] = tmp_row[0]
             logging.debug("Found target file '%s' (%s) in root '%s' (%s)", 
-                          ret_val[4], ret_val[5], ret_val[0], ret_val[1])
+                          ret_val['file_name'], ret_val['file_id'], 
+                          ret_val['root_name'], ret_val['root_id'])
             
         else:
-            logging.info("Unable to locate target '%s'!")
+            logging.info("Unable to locate target '%s'!", target)
 
     return ret_val
 
@@ -1281,16 +1285,16 @@ def list_db(db_conn, target):
     # Try to locate the target
     target_info = resolve_target(target, cursor)
 
-    if (target_info == None) or (target_info[3] == None):
+    if (target_info == None) or (target_info['dir_id'] == None):
         print target + " is not in database." + os.linesep
         return 0
         
 
     count = 0
 
-    if (target_info[2] != None):
+    if (target_info['dir_name'] != None):
         # Retrieve all children
-        parent_id = target_info[3]
+        parent_id = target_info['dir_id']
         print target + ":"
         # dirs
         cursor.execute("SELECT Name,Path_ID FROM '" + 
@@ -1308,7 +1312,7 @@ def list_db(db_conn, target):
             count += 1
     
     # Try the file table
-    if (target_info[5] != None):
+    if (target_info['file_id'] != None):
         print "Files matching " + target + ":" + os.linesep
 
         headers = ("Name", "ID", "Last Modified", "Fingerprint", "Size")
@@ -1316,7 +1320,7 @@ def list_db(db_conn, target):
                        "FROM '" + table_names['files'] + 
                        "' WHERE Parent_ID=? AND " +
                        "Name Like ?", 
-                       (target_info[3], target_info[4]) )
+                       (target_info['dir_id'], target_info['file_name']) )
         for row in cursor.fetchall():
             print row[0] + ":"
             for idx in xrange(1, len(headers)):
