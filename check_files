@@ -1001,11 +1001,11 @@ def check_dupe_trees(db_conn):
     # Get DB cursor object
     cursor = db_conn.cursor()
 
-    # Dict of directories by fingerprint
-    dirs_by_fp = dict()
+    # Dict of directories by ID: { ID -> [ name, parent id, fp cypher, dir fp ]
+    dirs_by_id = dict()
 
-    # Dict of directories by ID
-#    dir_hash = dict()
+    # Dict of directories by parent: { parent id -> [ dir ids ] }
+    dirs_by_parent = dict()
 
     # Count of duplicates
     count = 0
@@ -1013,39 +1013,44 @@ def check_dupe_trees(db_conn):
     # Algorithm:
     # 1. Start with all directories that do not have any children directories
     # 2. Grab all files in selected directories
-    # 3. Generate fingerprint of each directory:
+    # 3. Generate the first part of a fingerprint of each directory, if
+    #    it hasn't been seen already.
     #    a. sort child files list alphabetically
     #    b. add file names (if applicable) and file fingerprints (if applicable)
     #       to encoder
-    #    c. sort child directoris list alphabetically:
-    #    d. add dir names (if applicable) and dir fingerprints (if applicable)
+    # 4. Stuff fingerprints in dict by dir id.
+    # 5. Select parents of current iteration.
+    # 6. Repeat 2-6 until selection is empty.
+    # 7. Go back through list of directories and update fingerprints with
+    #    child directory info:
+    #    a. sort child directories list alphabetically:
+    #    b. add dir names (if applicable) and dir fingerprints (if applicable)
     #       to encoder
-    # 4. Stuff fingerprints in dict
-    # 5. (Optionally?) run through dict removing any entries that don't have
-    #    at least 2 items.
-    # 6. Select parents of current iteration
-    # 7. Repeat 2-6 until selection is empty.
-    # 8. Reconstruct trees for all remaining entries and report results
+    # 8. Finalize fingerprint and add to dict of dirs by FP.
+    # 9. Reconstruct trees for all remaining entries and report results
 
-    # Create temporary table.
-    cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
-                   "' (Path_ID INTEGER " +
-                   "PRIMARY KEY, Parent_ID INTEGER, Level INTEGER)")
-
-    level = 0
-    # Select all directories that don't have any child directories
-    cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
-                   "' (Path_ID,Parent_ID,Level) SELECT Path_ID,Parent_ID," +
-                   str(level) + " FROM '" + table_names['dirs'] + 
+    # Select all directories that don't have any child directories into a 
+    # temporary table
+    leaf_dirs_table = 'TMP_LEAF_DIRS'
+    cursor.execute("CREATE TEMP TABLE '" + leaf_dirs_table + 
+                   "' AS SELECT Path_ID,Parent_ID" +
+                   " FROM '" + table_names['dirs'] + 
                    "' WHERE Path_ID NOT " +
                    "IN (SELECT Parent_ID FROM '" + table_names['dirs'] + "')")
 
+    # Create temporary table to use as a workspace
+    cursor.execute("CREATE TEMP TABLE '" + table_names['tmp_dirs'] + 
+                   "' (Path_ID INTEGER, Parent_ID INTEGER, Level INTEGER)")
+
+    # Populate the workspace table with the list of leaf directories.
+    level = 0
+    cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
+                   "' (Path_ID,Parent_ID,Level) SELECT Path_ID,Parent_ID," +
+                   str(level) + " FROM '" + leaf_dirs_table + "'")
+
     done = False
-    dirs_by_parent = dict()
     skip_files = cmd_args.nofilefp and cmd_args.nofilename
     while not done:
-        logging.debug("dirs_by_parent: %s", dirs_by_parent)
-
         # Grab all files who's parent is represented in the temporary table
         if not skip_files:
             cols = "Parent_ID,Name"
@@ -1075,69 +1080,38 @@ def check_dupe_trees(db_conn):
 
         # For each item, generate a fingerprint and stuff into local data
         # structures.
-        tmp_dirs_by_parent = dict()
-        tmp_dirs_by_fp = dict()
         for entry in cursor.fetchall():
             logging.debug("Processing dir entry %s", entry)
-            dir_fp = hashlib.sha1()
-            # Add directory name to hash, if appropriate
-            if not cmd_args.nodirname:
-                dir_fp.update( entry[1] )
             
-            # Sort all files associated with this directory then add, if
-            # appropriate
-            if not skip_files and tmp_file_list.has_key( entry[0] ):
-                for name in sorted( tmp_file_list[ entry[0] ].keys() ):
-                    if not cmd_args.nofilename:
-                        dir_fp.update( name )
-                    if not cmd_args.nofilefp:
-                        dir_fp.update( tmp_file_list[ entry[0] ][ name ] )
+            # For the sake of legibility, lets create some local copies of
+            # what we retrieved from the database.
+            dir_id = entry[0]
+            dir_name = entry[1]
+            dir_parent = entry[2]
 
-            # Sort all directories associated with this directory the add, if
-            # appropriate
-            if (not cmd_args.nosubdirfp) and (not cmd_args.nosubdirname) and \
-                    dirs_by_parent.has_key( entry[0] ):
-               for name in sorted( dirs_by_parent[ entry[0] ].keys() ):
-                    if not cmd_args.nosubdirname:
-                        dir_fp.update( name )
-                    if not cmd_args.nosubdirfp:
-                        dir_fp.update( dirs_by_parent[ entry[0] ][ name ] )
+            if not dirs_by_id.has_key( dir_id ):
+                dir_fp = hashlib.sha1()
 
-            # Finalize and convert to hex
-            dir_fp = dir_fp.hexdigest()
-            logging.debug("Fingerprint for directory '%s' = '0x%s'", 
-                          entry[1], dir_fp)
-        
-            # Store for later
-            if not tmp_dirs_by_parent.has_key( entry[2] ):
-                tmp_dirs_by_parent[ entry[2] ] = { entry[1] : dir_fp }
-            else:
-                tmp_dirs_by_parent[ entry[2] ][ entry[1] ] = dir_fp
+                # Add directory name to hash, if appropriate
+                if not cmd_args.nodirname:
+                    dir_fp.update( dir_name )
             
-            if not tmp_dirs_by_fp.has_key( dir_fp ):
-                tmp_dirs_by_fp[ dir_fp ] = [ entry[0] ]
-            else:
-                tmp_dirs_by_fp[ dir_fp ].append( entry[0] )
-        
-        # Update dirs_by_fp with entries in tmp_dirs_by_fp that have more than
-        # one entry.
-        for fp in tmp_dirs_by_fp.keys():
-            logging.debug("Fingerprint '0x%s' has items: %s", fp, 
-                          tmp_dirs_by_fp[ fp ])
-            if 1 < len(tmp_dirs_by_fp[ fp ]):
-                if not dirs_by_fp.has_key( fp ):
-                    dirs_by_fp[ fp ] = tmp_dirs_by_fp[ fp ]
-                    logging.debug("Storing fingerprint '0x%s' = %s", fp,
-                                  dirs_by_fp[ fp ])
-                else:
-                    logger.debug("Not creating a new entry in dirs_by_fp. " +
-                                 "Shouldn't this be an error?")
-                    dirs_by_fp[ fp ] += tmp_dirs_by_fp[ fp ]
-            else:
-                logging.debug("Skipping fingerprint '0x%s'", fp)
+                # Sort all files associated with this directory then add, if
+                # appropriate
+                if not skip_files and tmp_file_list.has_key( dir_id ):
+                    for name in sorted( tmp_file_list[ dir_id ].keys() ):
+                        if not cmd_args.nofilename:
+                            dir_fp.update( name )
+                        if not cmd_args.nofilefp:
+                            dir_fp.update( tmp_file_list[ dir_id ][ name ] )
 
-        # Replace dirs_by_parent contents with tmp_dirs_by_parent.
-        dirs_by_parent = tmp_dirs_by_parent
+                # Store cypher for later
+                dirs_by_id[ dir_id ] = [ dir_name, dir_parent, dir_fp, None ]
+
+                # Store in parent -> [ dir_ids ]
+                if not dirs_by_parent.has_key( dir_parent ):
+                    dirs_by_parent[ dir_parent ] = []
+                dirs_by_parent[ dir_parent ].append( dir_id )
 
         # Replace contents of temporary table with parents of current entries.
         cursor.execute("INSERT INTO '" + table_names['tmp_dirs'] + 
@@ -1149,21 +1123,154 @@ def check_dupe_trees(db_conn):
                        "' WHERE Level=?", (level,))
         level += 1
         cursor.execute("SELECT COUNT(*) FROM '" + table_names['tmp_dirs'] + "'")
-        done = (0 < cursor.fetchone()[0])
+        num_rows = cursor.fetchone()[0]
+        logging.debug("Rows added for level %s: %s", level, num_rows)
+        done = (num_rows <= 0)
 
+    # At this point, we should have partial IDs for all directories in the
+    # database. This could become a problem for really large databases on
+    # machines with limited RAM/swap. May need to offload more of the 
+    # algorithm to SQLite...
+
+    # Retrieve the list of all directories that do not have children from the
+    # database. Iterate through this list completing their fingerprints and
+    # add their parents to a queue of directories that need to have their
+    # fingerprint completed. Also, add the completed fingerprints to the
+    # dict of fp -> [ path_ids ]
+    cursor.execute("SELECT Path_ID FROM '" + leaf_dirs_table + "'")
+    waiting_for_children = []
+    dirs_by_fp = dict()
+    for entry in cursor.fetchall():
+        dir_id = entry[0]
+
+        # Finalize, convert to hex, and store
+        dir_fp = dirs_by_id[ dir_id ][ 2 ].hexdigest()
+        dirs_by_id[ dir_id ][ 2 ] = None
+        dirs_by_id[ dir_id ][ 3 ] = dir_fp
+        logging.debug("Fingerprint for directory '%s' (%s) = '0x%s'", 
+                      dirs_by_id[ dir_id ][ 0 ], dir_id, dir_fp)
+
+        # Add to fp -> [ path_ids ] map
+        if not dirs_by_fp.has_key( dir_fp ):
+            dirs_by_fp[ dir_fp ] = []
+        dirs_by_fp[ dir_fp ].append( dir_id )
+        
+        # Add parent to queue, unless this directory is a root.
+        if 0 <= dirs_by_id[ dir_id ][ 1 ]:
+            waiting_for_children.append( dirs_by_id[ dir_id ][ 1 ] )
+
+    # Now, iterate through the queue finalizing fingerprints. First make
+    # sure that all child directories have been finalized. Each time a 
+    # directory is finalized, swap its parent's ID into the list. Once
+    # the root has been reached, swap from the end of the list.
+    done = (len(waiting_for_children) <= 0)
+    idx = 0
+    while not done:
+        # Make sure idx is within range
+        if len(waiting_for_children) <= idx:
+            idx = 0
+        
+        dir_id = waiting_for_children[ idx ]
+        dir_parent = dirs_by_id[ dir_id ][ 1 ]
+        dir_fp = dirs_by_id[ dir_id ][ 2 ]
+
+        # Update fingerprints with subdirectory information, if appropriate
+        all_leafs_finished = True
+        if dir_fp != None and (not cmd_args.nosubdirfp) and \
+                (not cmd_args.nosubdirname):
+
+            # Check children
+            logging.debug("Checking children of directory %s (%s)", dir_id,
+                          idx)
+            leaf_idx = 0
+            while all_leafs_finished and \
+                    leaf_idx < len(dirs_by_parent[ dir_id ]):
+                
+                leaf_id = dirs_by_parent[ dir_id ][ leaf_idx ]
+                if dirs_by_id[ leaf_id ][ 3 ] == None:
+                    all_leafs_finished = False
+                leaf_idx += 1
+                    
+            # If all children are finalized, build a list of leaf names, sort 
+            # it, and update fingerprint
+            if all_leafs_finished:
+                leaf_list = dict()
+                for leaf_id in dirs_by_parent[ dir_id ]:
+                    leaf_list[ dirs_by_id[ leaf_id ][ 0 ] ] = leaf_id
+
+                for name in sorted( leaf_list.keys() ):
+                    if not cmd_args.nosubdirname:
+                        dir_fp.update( name )
+                    if not cmd_args.nosubdirfp:
+                        dir_fp.update( dirs_by_id[ leaf_list[ name ] ][ 3 ])
+        
+        # If all leafs are finished:, finalize fingerprint and store, then
+        # swap this directory out for its parent. Otherwise, move onto the
+        # next item in the list.
+        if all_leafs_finished:
+            if dir_fp != None:
+                # Finalize fingerprint, convert to hex, and store
+                dir_fp = dir_fp.hexdigest()
+                dirs_by_id[ dir_id ][ 2 ] = None
+                dirs_by_id[ dir_id ][ 3 ] = dir_fp
+                logging.debug("Fingerprint for directory '%s' (%s) = '0x%s'", 
+                              dirs_by_id[ dir_id ][ 0 ], dir_id, dir_fp)
+
+                # Add to fp -> [ path_ids ] map
+                if not dirs_by_fp.has_key( dir_fp ):
+                    dirs_by_fp[ dir_fp ] = []
+                    dirs_by_fp[ dir_fp ].append( dir_id )
+        
+            # Check parent. If this is not a root, swap parent into this items
+            # place.
+            if 0 <= dir_parent:
+                waiting_for_children[idx] = dir_parent
+            else:
+                # If this is a root, pop an item off the end and swap into this 
+                # item's place, unless this item is the last item.
+                dir_parent = waiting_for_children.pop()
+                if idx < len(waiting_for_children):
+                    waiting_for_children[idx] = dir_parent
+        else:
+            idx += 1
+
+        # Check length of queue and stop if 
+        done = (len(waiting_for_children) <= 0)
+
+    # Last pass before reconstructing the tree: Step through list of 
+    # fingerprints:
+    # * remove any that correspond to only have one item
+    # * remove any where all items have parents with the same fingerprint.
+    for fp in dirs_by_fp.keys():
+        if len(dirs_by_fp[ fp ]) < 2:
+            del(dirs_by_fp[ fp ])
+        else:
+            tmp_id = dirs_by_fp[ fp ][ 0 ]
+            parent_fp = dirs_by_id[ dirs_by_id[ tmp_id ][ 1 ] ][ 2 ]
+
+            idx = 1
+            done = False
+            while not done:
+                if len(dirs_by_fp[ fp ]) <= idx:
+                    done = True
+                else:
+                    tmp_id = dirs_by_fp[ fp ][ idx ]
+                    if dirs_by_id[ dirs_by_id[ tmp_id ][ 1 ]][ 2 ] != parent_fp:
+                        done = True
+                    else:
+                        idx += 1
+            # See if we searched the whole list
+            if len(dirs_by_fp[ fp ]) <= idx:
+                # Yep, so we can drop it.
+                del(dirs_by_fp[ fp ])
+
+    logging.debug("Number of matches: %s", len(dirs_by_fp))
+                
     # Iterate through dirs_by_fp, adding all directories to the temporary table
     cursor.executemany("INSERT INTO '" + table_names['tmp_dirs'] + 
                        "' (Path_ID,Parent_ID) SELECT Path_ID,Parent_ID FROM '" +
                        table_names['dirs'] + "' WHERE Path_ID=?", 
                        serialize_hash_of_lists( dirs_by_fp ) )
-
-    # Recollect parent info for later
-    cursor.execute("SELECT Path_ID,Parent_ID,Name FROM '" + table_names['dirs']
-                   + "' WHERE Path_ID IN (SELECT Path_ID FROM '" +
-                   table_names['tmp_dirs'] + "')")
-    tmp_path_to_parent = dict()
-    for entry in cursor.fetchall():
-        tmp_path_to_parent[ entry[0] ] = (entry[1], entry[2])
 
     # Now reconstruct tree
     tree_info = reconstruct_tree(cursor)
@@ -1185,7 +1292,7 @@ def check_dupe_trees(db_conn):
                          + fp + ":")
 
             for entry in dirs_by_fp[fp]:
-                tmp_info = tmp_path_to_parent[ entry ]
+                tmp_info = dirs_by_id[ entry ]
                 path_name = gen_db_url( tree_info, tmp_info[0], tmp_info[1])
                 logging.info("    " + path_name + " (ID = " + str(entry) + 
                              ")")
@@ -1196,7 +1303,7 @@ def check_dupe_trees(db_conn):
                          + fp + ":" + os.linesep)
 
                 for entry in dirs_by_fp[fp]:
-                    tmp_info = tmp_path_to_parent[ entry ]
+                    tmp_info = dirs_by_id[ entry ]
                     path_name = gen_db_url( tree_info, tmp_info[0], tmp_info[1])
                     fh.write("    " + path_name + os.linesep)
 
