@@ -963,7 +963,7 @@ def check_dupe_files(db_conn):
         # Open dupes file, if specified
         fh = None
         if 0 < len(cmd_args.output):
-            fh = io.open(cmd_args.dupes_file, 'wt')
+            fh = io.open(cmd_args.output, 'wt')
         elif not cmd_args.verbose or (0 < len(cmd_args.log)):
             fh = io.open(sys.stdout.fileno(), 'wt')
         
@@ -1073,7 +1073,8 @@ def check_dupe_trees(db_conn):
                        table_names['dirs'] + "' WHERE Path_ID IN (SELECT " +
                        "Path_ID FROM '" + table_names['tmp_dirs'] + "')")
 
-        # For each item, generate a fingerprint and stuff into database
+        # For each item, generate a fingerprint and stuff into local data
+        # structures.
         tmp_dirs_by_parent = dict()
         tmp_dirs_by_fp = dict()
         for entry in cursor.fetchall():
@@ -1173,7 +1174,7 @@ def check_dupe_trees(db_conn):
         # Open dupes file, if specified
         fh = None
         if 0 < len(cmd_args.output):
-            fh = io.open(cmd_args.dupes_file, 'wt')
+            fh = io.open(cmd_args.output, 'wt')
         elif not cmd_args.verbose or (0 < len(cmd_args.log)):
             fh = io.open(sys.stdout.fileno(), 'wt')
         
