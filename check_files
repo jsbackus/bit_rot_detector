@@ -491,7 +491,6 @@ def prune_dirs(path, dir_data, cursor):
     """
 
     done = False
-#    ret_val = [ (0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0) ]
     ret_val = [ { 'missing' : 0}, { 'missing' : 0 } ]
     item_data = { 'file_entries': dict(), 'dir_entries': dir_data }
 
@@ -533,12 +532,6 @@ def prune_dirs(path, dir_data, cursor):
             done = True
 
     return ret_val
-
-def add_tuples(t1, t2):
-    """Properly vector-adds the specified tuples and returns the resulting
-    tuple.
-    """
-    return map(operator.add, t1, t2)
 
 def add_dicts(d1, d2):
     """Properly vector-adds the specified dicts-of-numbers and returns the 
@@ -645,11 +638,9 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                         logging.info("Skipping symbolic link '%s'",
                                      entry_full_name)
                         if stat.S_ISREG(entry_stat.st_mode):
-                            file_stats = add_tuples(file_stats, 
-                                                    (0, 0, 0, 0, 0, 1))
+                            file_stats['skipped'] += 1
                         elif stat.S_ISDIR(entry_stat.st_mode):
-                            dir_stats = add_tuples(dir_stats, 
-                                                    (0, 0, 0, 0, 0, 1))
+                            dir_stats['skipped'] += 1
                     
                     elif stat.S_ISREG(entry_stat.st_mode):
                         # Entry is a regular file.
