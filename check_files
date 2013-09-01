@@ -751,19 +751,20 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     for action in action_names:
         logging.info('      %s: %s', action, dir_stats[action.lower()])
 
-    speed_info = str(file_stats['bytes']) + " bytes processed in "
-    speed_info += '{:03.2f}'.format(file_stats['time'])
-    speed_info += ' seconds for an average speed of '
+    if 0 < file_stats['time']:
+        speed_info = str(file_stats['bytes']) + " bytes processed in "
+        speed_info += '{:03.2f}'.format(file_stats['time'])
+        speed_info += ' seconds for an average speed of '
+        
+        avg_speed = file_stats['bytes'] / file_stats['time']
+        if 1e6 < avg_speed:
+            speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'MB/s'
+        elif 1e3 < avg_speed:
+            speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'KB/s'
+        else:
+            speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'B/s'
 
-    avg_speed = file_stats['bytes'] / file_stats['time']
-    if 1e6 < avg_speed:
-        speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'MB/s'
-    elif 1e3 < avg_speed:
-        speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'KB/s'
-    else:
-        speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'B/s'
-
-    logging.info(speed_info)
+        logging.info(speed_info)
                  
 
     # Return error code
