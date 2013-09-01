@@ -1042,7 +1042,9 @@ def check_dupe_trees(db_conn):
     #    c. Add parent dirs to list of dirs waiting for fp.
     #    d. Add parent dirs to list of dirs by id and dirs by parent.
     # 4. Repeat 2 and 3 until list of dirs waiting to be fingerprinted is empty.
-    # 5. TO DO: Need to only remove subtrees of matching nodes...
+    # 5. Iterate over list of fingerprints. For each fp, see the parents of
+    #    each of the directories associated with the current fingerprint also 
+    #    have the same fingerprint. If all do, delete this fingerprint.
     # 6. Reconstruct trees for all remaining entries and report results
 
     # Build dirs_by_id and dirs_by_parent from database
@@ -1167,7 +1169,7 @@ def check_dupe_trees(db_conn):
                           dirs_by_id[ dir_id ][ 0 ], dir_id, dir_fp )
 
             # Remove from list of to-be-fp'd "queue". Add parent if this dir
-            # isn't a root.
+            # is valid.
             del(waiting_for_fp[ dir_id ])
             dir_parent = dirs_by_id[ dir_id ][ 1 ]
             if 0 <= dir_parent:
@@ -1185,6 +1187,27 @@ def check_dupe_trees(db_conn):
     for fp in dirs_by_fp.keys():
         if len(dirs_by_fp[ fp ]) < 2:
             del(dirs_by_fp[ fp ])
+
+    for fp in dirs_by_fp.keys():
+        parent_fp = None
+        all_ancestors_same_fp = True
+        for dir_id in dirs_by_fp[ fp ]:
+            dir_parent = dirs_by_id[ dir_id ][ 1 ]
+            # Set the parent's fingerprint if this is the first pass
+            if parent_fp == None:
+                parent_fp = dirs_by_id[ dir_parent ][ 2 ]
+            else:
+                if dirs_by_id[ dir_parent ][ 2 ] != parent_fp:
+                    all_ancestors_same_fp = False
+                    break
+        # Delete this fingerprint if the parents of all items have same fp.
+        if all_ancestors_same_fp:
+            del(dirs_by_fp[ fp ])
+            logging.debug("Removing fingerprint '%s' - all subtrees match.",
+                          fp)
+        else:
+            logging.debug("Not removing fingerprint '%s' - one or more " +
+                          "parents differ.", fp)
 
     logging.debug("Number of matches: %s", len(dirs_by_fp))
                 
