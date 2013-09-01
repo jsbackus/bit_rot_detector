@@ -202,7 +202,6 @@ def tokenize_path(path):
         yield elms[1]
 # /\ /\ Consider removing this function /\ /\
 
-# \/ \/ Consider removing this function \/ \/
 def serialize_hash_of_lists( hash_of_lists ):
     """Generator to serialize a hash of lists. It goes through the keys of the
     hash in no particular order, returning the items of each list one at a time
@@ -220,12 +219,10 @@ def serialize_hash_of_lists( hash_of_lists ):
             cur_idx = 0
         if cur_idx < len(hash_of_lists[ cur_key ]):
             tmp = (hash_of_lists[ cur_key ][ cur_idx ],)
-#            logging.debug("Yielding %s", tmp)
             yield tmp
             cur_idx += 1
         else:
             break
-# /\ /\ Consider removing this function /\ /\
 
 def read_in_chunks(file_obj, chunk_size=1024*1024):
     """Generator to read data from the specified file in chunks.
@@ -881,7 +878,9 @@ def gen_db_url(tree_info, parent_id, item):
     database using the reconstructed tree information from reconstruct_tree().
     """
 
-    if tree_info['dirs'].has_key( parent_id ):
+    if parent_id < 0:
+        ret_val = '[' + item + ']'
+    elif tree_info['dirs'].has_key( parent_id ):
         root_id = tree_info['dirs'][ parent_id ][1]
         ret_val = '[' + tree_info['roots'][ root_id ] + ']'
         ret_val = os.path.join(ret_val, tree_info['dirs'][ parent_id ][0], 
@@ -1001,7 +1000,7 @@ def check_dupe_trees(db_conn):
     # Get DB cursor object
     cursor = db_conn.cursor()
 
-    # Dict of directories by ID: { ID -> [ name, parent id, dir fp ]
+    # Dict of directories by ID: { ID -> [ name, parent id, dir fp ] }
     dirs_by_id = dict()
 
     # Dict of directories by parent: { parent id -> [ dir ids ] }
@@ -1120,7 +1119,7 @@ def check_dupe_trees(db_conn):
             dir_fp = hashlib.sha1()
             
             # Add directory name to hash, if appropriate
-            if not cmd_args.nodirname:
+            if not cmd_args.nodirname and 0 <= dirs_by_id[ dir_id ][ 1 ]:
                 dir_fp.update( dirs_by_id[ dir_id ][ 0 ] )
 
             # Add files, if appropriate
@@ -1186,6 +1185,8 @@ def check_dupe_trees(db_conn):
     # Iterate over list of fingerprints and remove any that only have 1 entry.
     for fp in dirs_by_fp.keys():
         if len(dirs_by_fp[ fp ]) < 2:
+            logging.debug( "Removing fp '%s' with sole directory '%s'",
+                          fp, dirs_by_id[ dirs_by_fp[ fp ][ 0 ] ][ 0 ] )
             del(dirs_by_fp[ fp ])
 
     for fp in dirs_by_fp.keys():
@@ -1193,13 +1194,18 @@ def check_dupe_trees(db_conn):
         all_ancestors_same_fp = True
         for dir_id in dirs_by_fp[ fp ]:
             dir_parent = dirs_by_id[ dir_id ][ 1 ]
-            # Set the parent's fingerprint if this is the first pass
-            if parent_fp == None:
-                parent_fp = dirs_by_id[ dir_parent ][ 2 ]
+            if 0 <= dir_parent:
+                # Set the parent's fingerprint if this is the first pass
+                if parent_fp == None:
+                    parent_fp = dirs_by_id[ dir_parent ][ 2 ]
+                else:
+                    if dirs_by_id[ dir_parent ][ 2 ] != parent_fp:
+                        all_ancestors_same_fp = False
+                        break
             else:
-                if dirs_by_id[ dir_parent ][ 2 ] != parent_fp:
-                    all_ancestors_same_fp = False
-                    break
+                all_ancestors_same_fp = False
+                break
+
         # Delete this fingerprint if the parents of all items have same fp.
         if all_ancestors_same_fp:
             del(dirs_by_fp[ fp ])
