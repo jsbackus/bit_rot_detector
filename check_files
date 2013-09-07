@@ -595,7 +595,7 @@ def scan_target(target, db_conn):
     # Get DB cursor object
     cursor = db_conn.cursor()
 
-    # Attempt to resolve the 
+    # Attempt to resolve the target
     target_info = resolve_target(target, cursor)
 
     # If nothing returned, assume the specified target is a new root.
@@ -1267,6 +1267,41 @@ def check_dupe_trees(db_conn):
             fh.close()
 
     logging.info("Duplicates found: " + str(count))
+
+def diff_trees(db_conn, lhs_target, rhs_target):
+    """Recursively compares the two subtrees, producing output similar to diff.
+    """
+
+    # Get DB cursor object
+    cursor = db_conn.cursor()
+
+    # Attempt to resolve the targets
+    lhs_info = resolve_target(lhs_target, cursor)
+    rhs_info = resolve_target(rhs_target, cursor)
+    if lhs_info == None:
+        logging.error("'%s' not in database!", lhs_target)
+    if rhs_info == None:
+        logging.error("'%s' not in database!", rhs_target)
+    if lhs_info == None or rhs_info == None:
+        return
+    
+    # Build a queue and crawl it, similar to crawl_trees, only include
+    # the lhs and rhs info in each node.
+    dir_queue = [( (lhs_target, lhs_info['dir_id']), 
+                   (rhs_target, rhs_info['dir_id']) )]
+
+    try:
+        # Walk the subtrees
+        while 0 < len(dir_queue):
+            node = dir_queue.pop()
+            lhs = node[0]
+            rhs = node[1]
+
+            logging.debug("%s", node)
+        
+            # Query the database
+            lhs_db_data = get_dir_items_from_db(cursor, lhs[1], True)
+            rhs_db_data = get_dir_items_from_db(cursor, rhs[1], True)
 
 def del_roots(db_conn):
     """Attempts to remove the specified root
