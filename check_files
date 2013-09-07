@@ -103,13 +103,13 @@ def parse_args():
                                   'duplicates to.')
 
     # Diff Root subparser
-    diff_mode = subparsers.add_parser('diffroot', 
+    diff_mode = subparsers.add_parser('diff', 
                                       help='Scans the database for ' +
                                       'duplicate directory subtrees.')
-    diff_mode.add_argument('output', nargs='?', default='',
-                           help='Optional file to dump list of ' +
-                           'duplicates to.')
-    diff_mode.add_argument('root_names', nargs=2, 
+#    diff_mode.add_argument('output', nargs='?', default='',
+#                           help='Optional file to dump list of ' +
+#                           'duplicates to.')
+    diff_mode.add_argument('target', nargs=2, 
                            help='Names of roots/subtrees to check')
 
     # Check DB subparser
@@ -1268,6 +1268,15 @@ def check_dupe_trees(db_conn):
 
     logging.info("Duplicates found: " + str(count))
 
+def diff_trees_notify(str):
+    """Helper function for diff_trees to alert user.
+    """
+    # Log
+    logging.info("%s", str)
+
+    # Print to screen.
+    print str
+
 def diff_trees(db_conn, lhs_target, rhs_target):
     """Recursively compares the two subtrees, producing output similar to diff.
     """
@@ -1303,6 +1312,50 @@ def diff_trees(db_conn, lhs_target, rhs_target):
             lhs_db_data = get_dir_items_from_db(cursor, lhs[1], True)
             rhs_db_data = get_dir_items_from_db(cursor, rhs[1], True)
 
+            # Check files first
+            for entry in lhs_db_data['file_entries'].keys():
+                if rhs_db_data['file_entries'].has_key( entry ):
+                    # Check fingerprints
+                    if( lhs_db_data['file_entries'][ entry ][ 3 ] != \
+                            rhs_db_data['file_entries'][ entry ][ 3 ] ):
+                        diff_trees_notify( os.path.join(lhs[0], entry) 
+                                           + " and " + 
+                                           os.path.join(rhs[0], entry) 
+                                           + " differ.")
+                    del( rhs_db_data['file_entries'][ entry ] )
+                else:
+                    diff_trees_notify("Only in " + 
+                                      lhs[0] + ": " + entry)
+                del( lhs_db_data['file_entries'][ entry ] )
+
+            for entry in rhs_db_data['file_entries'].keys():
+                diff_trees_notify("Only in " + 
+                                  rhs[0] + ": " + entry)
+                del( rhs_db_data['file_entries'][ entry ] )
+                
+
+            # Check directories
+            for entry in lhs_db_data['dir_entries'].keys():
+                if rhs_db_data['dir_entries'].has_key( entry ):
+                    # Push onto stack to check later
+                    dir_queue = [( (os.path.join(lhs[0], entry), 
+                                    lhs_db_data['dir_entries'][ entry ][ 0 ]), 
+                                   (os.path.join(rhs[0], entry), 
+                                    rhs_db_data['dir_entries'][ entry ][ 0 ]) )]
+                    del( rhs_db_data['dir_entries'][ entry ] )
+                else:
+                    diff_trees_notify("Only in " + 
+                                      lhs[0] + ": " + entry)
+                del( lhs_db_data['dir_entries'][ entry ] )
+
+            for entry in rhs_db_data['dir_entries'].keys():
+                diff_trees_notify("Only in " + 
+                                  rhs[0] + ": " + entry)
+                del( rhs_db_data['dir_entries'][ entry ] )
+
+    except KeyboardInterrupt:
+        logging.error("Interrupt detected.")
+                
 def del_roots(db_conn):
     """Attempts to remove the specified root
     """
@@ -1587,11 +1640,10 @@ try:
                 check_dupe_trees(db_conn)
 
     elif cmd_args.subcommand == 'diffroot':
-        print "\n\nWarning: Not supported yet!\n"
         # Open fingerprint database
-        #    with open_db(cmd_args.db) as db_conn:
-        #        diff_roots(db_conn)
-        
+        with open_db(cmd_args.db) as db_conn:
+            diff_trees(db_conn, cmd_args.target[0], cmd_args.target[1])
+            
     elif cmd_args.subcommand == 'list':
         # Open fingerprint database
         with open_db(cmd_args.db) as db_conn:
