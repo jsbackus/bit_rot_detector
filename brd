@@ -23,7 +23,8 @@ table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs',
 version = 0
 
 help_epilog = """
-this is a test epilog.
+bit_rot_detector is a tool to scan a directory tree and check each file for
+corruption caused by damage to the physical storage medium or malicious 
 
 For more information: 
 https://github.com/jsbackus/bit_rot_detector
@@ -70,8 +71,11 @@ def parse_args():
     scan_mode.add_argument('-P', '--progress', action='store_true',
                            help='Displays progress meter.')
     scan_mode.add_argument('--dry-run', action='store_true',
-                           help='Prints commands to execute, but don\'t do ' +
-                           'anything.')
+                           help='Scans the specified target but does not ' +
+                           'update the database when changes are detected.' +
+                           ' Useful for checking for malicious damage when ' +
+                           ' scanning files that are known to not have ' +
+                           'changed.')
     scan_mode.add_argument('-s', '--skip-recent', action='store_true',
                            help='When scanning, skips files in directories that'
                            + ' have been checked recently. See --expr.')
