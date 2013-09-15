@@ -21,6 +21,7 @@ table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs',
                 'tmp_dirs' : 'tmp_dirs' }
 
 version = 0
+default_db = sys.argv[0] + ".db"
 
 help_epilog = """
 bit_rot_detector is a tool to scan a directory tree and check each file for
@@ -55,7 +56,7 @@ def parse_args():
                         help='only display warnings and errors')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='display debugging information')
-    parser.add_argument('--db', default='check_files.db',
+    parser.add_argument('--db', default=default_db,
                         help='Database that contains file fingerprint info.')
 
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
