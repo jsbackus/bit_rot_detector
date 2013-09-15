@@ -136,7 +136,7 @@ def parse_args():
     # Dupe subtrees subparser
     dupe_trees_mode = subparsers.add_parser('dupe_trees', 
                                              help='Scans the database for ' +
-                                             'duplicate directory subtrees.')
+                                             'duplicate subtrees.')
     dupe_trees_mode.add_argument('--nofilefp', action='store_true',
                                  help="Don't include file fingerprints in " +
                                  "directory fingerprints.")
@@ -159,8 +159,7 @@ def parse_args():
 
     # Diff Root subparser
     diff_mode = subparsers.add_parser('diff', 
-                                      help='Scans the database for ' +
-                                      'duplicate directory subtrees.')
+                                      help='Compares subtrees like diff -R.')
     diff_mode.add_argument('-o', '--output', nargs='?', default='',
                            help='Optional file to diff output to.' +
                            'Useful when -v or -d is used')

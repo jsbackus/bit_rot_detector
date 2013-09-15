@@ -1,13 +1,53 @@
-bit_rot_detector
+-= bit_rot_detector =-
 ==========================
 
-bit_rot_detector is a tool designed to crawl a directory tree, 
-calculate fingerprints of all files it finds and compare them to a database
-containing known-good fingerprints. It is intended to be part of a larger
-file archiving/backup management project in the future, hence the choice of 
-SQLite.
+bit_rot_detector, or brd, is a tool to scan a directory tree and check each file
+for corruption caused by damage to the physical storage medium or by damage from
+malicious programs. Files are fingerprinted using the SHA-1 algorithm. File
+fingerprints, sizes, and modification times are stored in a SQLite database.
 
+Multiple unrelated directory trees can be stored in the same database. All
+trees are identified by the base directory, or root, as specified on the 
+command-line. Note that the following are considered different trees:
+    some_dir/
+    ./some_dir/
+
+Subtrees can be specified anywhere roots can as long as the full root to subtree
+path is specified. However, the subtree must already exist in the database. If
+the subtree is not currently in the database, it will be considered to be a
+new root. For example, the following will scan some_dir as a new root and add 
+all of its children to the database, then scan the subtree some_subtree for
+problems and/or changes:
+    # Add new root
+    brd scan some_dir
+    # Scan only part of a root for problems and changes.
+    brd scan some_dir/some_subtree
+
+Note: the default behavior for scan is to update the database for any files
+that are newer than the database record. Files that have been tampered with will
+likely be flagged as updated and not as damaged. To properly check for files
+that have been tampered with, run scan with the --dry-run option.
+
+Since scanning large trees or trees with large files can take quite a while,
+it is possible to exclude files in directories that have recently been checked
+via the -s option. How recent is "recent" is controlled by the --expr option and
+defaults to 30 days.
+
+The integrity of the database can be checked via the checkdb subcommand.
+
+In addition to checking files for corruption, brd provides the ability to search
+the database for duplicate files and subtrees, as well as diff subtrees.
+See the dupe_files, dupe_trees, and diff subcommands for details.
+
+General and subcommand help can be viewed via the -h option:
+    brd -h
+    brd scan -h
+
+-= Homepage =-
+==========================
+http://github.com/jsbackus/bit_rot_detector
+
+-= Copyright =-
+==========================
 (c) 2013 Jeff Backus
 See LICENSE for information regarding use and distribution.
-
--= Usage =-
