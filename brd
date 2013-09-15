@@ -6,6 +6,7 @@ import os
 import stat
 import hashlib
 import argparse
+from argparse import RawTextHelpFormatter
 import sqlite3
 import operator
 import time
@@ -20,7 +21,16 @@ table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs',
                 'tmp_dirs' : 'tmp_dirs' }
 
 version = 0
-home_url = "https://github.com/jsbackus/simple_file_integrity_tool"
+
+help_epilog = """
+this is a test epilog.
+
+For more information: 
+https://github.com/jsbackus/bit_rot_detector
+
+Released under the GPL v2.
+(c) 2013 Jeff Backus
+"""
 
 #############
 # Functions #
@@ -31,8 +41,10 @@ def parse_args():
     
     # Create parser object
     parser = argparse.ArgumentParser(description=
-                                     'Tool verify file integrity.' + os.linesep
-                                     + "For more information: " + home_url)
+                                     'Tool to scan for bit rot and other ' +
+                                     'forms of file corruption. ',
+                                     epilog=help_epilog, 
+                                     formatter_class=RawTextHelpFormatter)
     parser.add_argument('--version', action="version", 
                         version="%(prog)s version "+str(version) + 
                         " (c) 2013 Jeff Backus")
@@ -58,7 +70,7 @@ def parse_args():
     scan_mode.add_argument('-P', '--progress', action='store_true',
                            help='Displays progress meter.')
     scan_mode.add_argument('--dry-run', action='store_true',
-                           help='prints commands to execute, but don\'t do ' +
+                           help='Prints commands to execute, but don\'t do ' +
                            'anything.')
     scan_mode.add_argument('-s', '--skip-recent', action='store_true',
                            help='When scanning, skips files in directories that'
@@ -66,18 +78,20 @@ def parse_args():
     scan_mode.add_argument('--expr', default=30, type=int,
                            help="Specifies how old 'recent' is, in days, when" +
                            " skipping recent files.")
-    scan_mode.add_argument('-r', '--root', default='',
-                           help='Specifies the root.')
     scan_mode.add_argument('target', nargs='+', 
-                           help='Root of a directory tree to scan and check.')
+                           help='Directory tree to scan and check. Can be ' +
+                           'a subdirectory of a root that already exists in ' +
+                           'the database. If this target is not already in ' +
+                           'the database, it will be added as a new root.')
 
     # Dupe files subparser
     dupe_files_mode = subparsers.add_parser('dupe_files', 
                                             help='Scans the database for ' +
                                             'duplicate files by fingerprint.')
-    dupe_files_mode.add_argument('output', nargs='?', default='',
-                                  help='Optional file to dump list of ' +
-                                  'duplicates to.')
+    dupe_files_mode.add_argument('-o', '--output', nargs='?', default='',
+                                 help='Optional file to dump list of ' +
+                                 'duplicates to. Useful when -v or -d is ' +
+                                 'used.')
 
     # Dupe subtrees subparser
     dupe_trees_mode = subparsers.add_parser('dupe_trees', 
@@ -98,17 +112,18 @@ def parse_args():
     dupe_trees_mode.add_argument('--nodirname', action='store_true',
                                  help="Don't include a directory's name in " +
                                  "its own fingerprint.")
-    dupe_trees_mode.add_argument('output', nargs='?', default='',
-                                  help='Optional file to dump list of ' +
-                                  'duplicates to.')
+    dupe_trees_mode.add_argument('-o', '--output', nargs='?', default='',
+                                 help='Optional file to dump list of ' +
+                                 'duplicates to. Useful when -v or -d is ' +
+                                 'used.')
 
     # Diff Root subparser
     diff_mode = subparsers.add_parser('diff', 
                                       help='Scans the database for ' +
                                       'duplicate directory subtrees.')
-#    diff_mode.add_argument('output', nargs='?', default='',
-#                           help='Optional file to dump list of ' +
-#                           'duplicates to.')
+    diff_mode.add_argument('-o', '--output', nargs='?', default='',
+                           help='Optional file to diff output to.' +
+                           'Useful when -v or -d is used')
     diff_mode.add_argument('target', nargs=2, 
                            help='Names of roots/subtrees to check')
 
@@ -1268,14 +1283,15 @@ def check_dupe_trees(db_conn):
 
     logging.info("Duplicates found: " + str(count))
 
-def diff_trees_notify(str):
+def diff_trees_notify(msg, fh):
     """Helper function for diff_trees to alert user.
     """
     # Log
-    logging.info("%s", str)
+    logging.info("%s", msg)
 
-    # Print to screen.
-    print str
+    # Send to file/STDOUT if appropriate
+    if not (fh == None):
+        fh.write(msg + os.linesep)
 
 def diff_trees(db_conn, lhs_target, rhs_target):
     """Recursively compares the two subtrees, producing output similar to diff.
@@ -1299,6 +1315,13 @@ def diff_trees(db_conn, lhs_target, rhs_target):
     dir_queue = [( (lhs_target, lhs_info['dir_id']), 
                    (rhs_target, rhs_info['dir_id']) )]
 
+    # Open output file, if specified
+    fh = None
+    if 0 < len(cmd_args.output):
+        fh = io.open(cmd_args.output, 'wt')
+    elif not cmd_args.verbose or (0 < len(cmd_args.log)):
+        fh = io.open(sys.stdout.fileno(), 'wt')
+
     try:
         # Walk the subtrees
         while 0 < len(dir_queue):
@@ -1321,16 +1344,16 @@ def diff_trees(db_conn, lhs_target, rhs_target):
                         diff_trees_notify( os.path.join(lhs[0], entry) 
                                            + " and " + 
                                            os.path.join(rhs[0], entry) 
-                                           + " differ.")
+                                           + " differ.", fh)
                     del( rhs_db_data['file_entries'][ entry ] )
                 else:
                     diff_trees_notify("Only in " + 
-                                      lhs[0] + ": " + entry)
+                                      lhs[0] + ": " + entry, fh)
                 del( lhs_db_data['file_entries'][ entry ] )
 
             for entry in rhs_db_data['file_entries'].keys():
                 diff_trees_notify("Only in " + 
-                                  rhs[0] + ": " + entry)
+                                  rhs[0] + ": " + entry, fh)
                 del( rhs_db_data['file_entries'][ entry ] )
                 
 
@@ -1345,12 +1368,12 @@ def diff_trees(db_conn, lhs_target, rhs_target):
                     del( rhs_db_data['dir_entries'][ entry ] )
                 else:
                     diff_trees_notify("Only in " + 
-                                      lhs[0] + ": " + entry)
+                                      lhs[0] + ": " + entry, fh)
                 del( lhs_db_data['dir_entries'][ entry ] )
 
             for entry in rhs_db_data['dir_entries'].keys():
                 diff_trees_notify("Only in " + 
-                                  rhs[0] + ": " + entry)
+                                  rhs[0] + ": " + entry, fh)
                 del( rhs_db_data['dir_entries'][ entry ] )
 
     except KeyboardInterrupt:
