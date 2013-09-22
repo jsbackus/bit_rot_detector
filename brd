@@ -1463,6 +1463,7 @@ def resolve_target(target, cursor):
 
     # Remove any trailing OS separators and split into tokens
     path_nodes = target.rstrip(os.sep).split(os.sep)
+    logging.debug('Target tokens: %s', path_nodes)
 
     # Step through all nodes but the last one, probing database. Bail if we
     # can't find one.
@@ -1489,6 +1490,8 @@ def resolve_target(target, cursor):
                'dir_id' : None, 'file_name' : None, 'file_id' : None }
 
     for idx in xrange(idx, len(path_nodes)-1):
+        logging.debug("Checking for directory '%s' in parent ID %s", 
+                      path_nodes[idx], parent_id)
         cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
                        "' WHERE Parent_ID=? AND Name=?", (parent_id, 
                                                           path_nodes[idx]) )
@@ -1498,10 +1501,14 @@ def resolve_target(target, cursor):
                           path_nodes[idx], tmp_root)
             return ret_val
         else:
+            logging.debug("Directory '%s' (%s) is a child of dir ID %s",
+                          path_nodes[idx], tmp_row[0], parent_id)
             parent_id = tmp_row[0]
 
     # Check dir table for last node
     if idx < len(path_nodes):
+        logging.debug("Checking for directory '%s' in parent ID %s", 
+                      path_nodes[-1], parent_id)
         cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
                        "' WHERE Parent_ID=? AND Name=?", (parent_id, 
                                                           path_nodes[-1]) )
@@ -1510,6 +1517,8 @@ def resolve_target(target, cursor):
     # Return results
     if (tmp_row != None):
         # Found entry in directories table.
+        logging.debug("Directory '%s' (%s) is a child of dir ID %s",
+                      path_nodes[-1], tmp_row[0], parent_id)
         ret_val['dir_name'] = path_nodes[-1]
         ret_val['dir_id'] = tmp_row[0]
         logging.debug("Found target directory '%s' (%s) in root '%s' (%s)", 
@@ -1518,8 +1527,10 @@ def resolve_target(target, cursor):
 
     else:
         # Try the file table
+        logging.debug("Checking for file '%s' in parent ID %s", 
+                      path_nodes[-1], parent_id)
         cursor.execute("SELECT File_ID FROM '" + table_names['files'] + 
-                       "' WHERE Parent_ID=? AND Name Like ?", 
+                       "' WHERE Parent_ID=? AND Name GLOB ?", 
                        (parent_id, path_nodes[-1]) )
         tmp_row = cursor.fetchone()
         if (tmp_row != None):
@@ -1617,7 +1628,7 @@ def list_db(db_conn, target):
         cursor.execute("SELECT Name,File_ID,LastModified,Fingerprint,Size " + 
                        "FROM '" + table_names['files'] + 
                        "' WHERE Parent_ID=? AND " +
-                       "Name Like ?", 
+                       "Name GLOB ?", 
                        (target_info['dir_id'], target_info['file_name']) )
 
         if cmd_args.minimal:
