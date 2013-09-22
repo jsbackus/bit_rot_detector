@@ -1546,7 +1546,11 @@ def list_db(db_conn, target):
         for row in cursor.fetchall():
             print row[0] + ":"
             for idx in xrange(1, len(headers)):
-                print "    " + headers[idx] + ": " + str(row[idx])
+                if headers[idx] == 'Last Modified':
+                    print "    " + headers[idx] + ": " + \
+                        str(datetime.datetime.fromtimestamp(float(row[idx])))
+                else:
+                    print "    " + headers[idx] + ": " + str(row[idx])
             count += 1
 
     print os.linesep + str(count) + " entries listed." + os.linesep
