@@ -21,16 +21,54 @@ table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs',
                 'tmp_dirs' : 'tmp_dirs' }
 
 version = 0
+default_db = os.path.basename(sys.argv[0]) + ".db"
+
+help_desc = """
+bit_rot_detector, or brd, is a tool to scan a directory tree and check each file
+for corruption caused by damage to the physical storage medium or by damage from
+malicious programs. Files are fingerprinted using the SHA-1 algorithm. File
+fingerprints, sizes, and modification times are stored in a SQLite database.
+
+Multiple unrelated directory trees can be stored in the same database. All
+trees are identified by the base directory, or root, as specified on the 
+command-line. Note that the following are considered different trees:
+    some_dir/
+    ./some_dir/
+
+Subtrees can be specified anywhere roots can as long as the full root to subtree
+path is specified. However, the subtree must already exist in the database. If
+the subtree is not currently in the database, it will be considered to be a
+new root. For example, the following will scan some_dir as a new root and add 
+all of its children to the database, then scan the subtree some_subtree for
+problems and/or changes:
+    # Add new root
+    brd scan some_dir
+    # Scan only part of a root for problems and changes.
+    brd scan some_dir/some_subtree
+
+Note: the default behavior for scan is to update the database for any files
+that are newer than the database record. Files that have been tampered with will
+likely be flagged as updated and not as damaged. To properly check for files
+that have been tampered with, run scan with the --dry-run option.
+
+Since scanning large trees or trees with large files can take quite a while,
+it is possible to exclude files in directories that have recently been checked
+via the -s option. How recent is "recent" is controlled by the --expr option and
+defaults to 30 days.
+
+The integrity of the database can be checked via the checkdb subcommand.
+
+In addition to checking files for corruption, brd provides the ability to search
+the database for duplicate files and subtrees, as well as diff subtrees.
+See the dupe_files, dupe_trees, and diff subcommands for details.
+"""
 
 help_epilog = """
-bit_rot_detector is a tool to scan a directory tree and check each file for
-corruption caused by damage to the physical storage medium or malicious 
-
 For more information: 
-https://github.com/jsbackus/bit_rot_detector
+http://github.com/jsbackus/bit_rot_detector
 
-Released under the GPL v2.
 (c) 2013 Jeff Backus
+Released under the GPL v2.
 """
 
 #############
@@ -41,10 +79,7 @@ def parse_args():
     """
     
     # Create parser object
-    parser = argparse.ArgumentParser(description=
-                                     'Tool to scan for bit rot and other ' +
-                                     'forms of file corruption. ',
-                                     epilog=help_epilog, 
+    parser = argparse.ArgumentParser(description=help_desc, epilog=help_epilog,
                                      formatter_class=RawTextHelpFormatter)
     parser.add_argument('--version', action="version", 
                         version="%(prog)s version "+str(version) + 
@@ -55,8 +90,9 @@ def parse_args():
                         help='only display warnings and errors')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='display debugging information')
-    parser.add_argument('--db', default='check_files.db',
-                        help='Database that contains file fingerprint info.')
+    parser.add_argument('--db', default=default_db,
+                        help='Database that contains file fingerprint info.' +
+                        '\nDefaults to: ' + default_db)
 
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
                                        description='valid subcommands',
@@ -100,7 +136,7 @@ def parse_args():
     # Dupe subtrees subparser
     dupe_trees_mode = subparsers.add_parser('dupe_trees', 
                                              help='Scans the database for ' +
-                                             'duplicate directory subtrees.')
+                                             'duplicate subtrees.')
     dupe_trees_mode.add_argument('--nofilefp', action='store_true',
                                  help="Don't include file fingerprints in " +
                                  "directory fingerprints.")
@@ -123,8 +159,7 @@ def parse_args():
 
     # Diff Root subparser
     diff_mode = subparsers.add_parser('diff', 
-                                      help='Scans the database for ' +
-                                      'duplicate directory subtrees.')
+                                      help='Compares subtrees like diff -R.')
     diff_mode.add_argument('-o', '--output', nargs='?', default='',
                            help='Optional file to diff output to.' +
                            'Useful when -v or -d is used')
