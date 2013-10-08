@@ -101,6 +101,13 @@ def parse_args():
     scan_mode = subparsers.add_parser('scan', 
                                       help='Scans and checks the filesystem')
 
+    scan_mode.add_argument('--use-root', default='',
+                           help='Strip path information from all targets and ' +
+                           'replace with the specified string when ' +
+                           'interacting with the database.')
+    scan_mode.add_argument('--root-prefix', default='',
+                           help='Append the specified string to all targets ' +
+                           'when interacting with the database.')
     scan_mode.add_argument('-p', '--prune', action='store_true',
                            help='Prunes directories and files from database ' +
                            'that no longer exist on the filesystem.')
@@ -1459,10 +1466,24 @@ def resolve_target(target, cursor):
     be None. If the root cannot be resolved, None is returned.
     """
 
+    ### NOTES: Need to modify get_root_from_db or call directly...
+
     ret_val = None
 
-    # Remove any trailing OS separators and split into tokens
-    path_nodes = target.rstrip(os.sep).split(os.sep)
+    # Remove any trailing OS separators
+    target = target.rstrip(os.sep)
+
+    # If a root prefix was specified, prepend it
+    if 0 < len(cmd_args.root_prefix):
+        target = cmd_args.root_prefix + target
+
+    # If a surrogate root was specified, remove last token and attach it to
+    # the surrogate.
+    if 0 < len(cmd_args.use_root):
+        target = os.path.join(cmd_args.use_root, os.path.basename(target))
+
+    # Split target into tokens
+    path_nodes = target.split(os.sep)
     logging.debug('Target tokens: %s', path_nodes)
 
     # Step through all nodes but the last one, probing database. Bail if we
