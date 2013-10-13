@@ -1485,7 +1485,7 @@ def resolve_target(target, cursor, add_root=False):
 
     # If a root prefix was specified, prepend it
     if 0 < len(cmd_args.root_prefix):
-        target = cmd_args.root_prefix + target
+        target = os.path.join(cmd_args.root_prefix, target)
 
     # If a surrogate root was specified, remove last token and attach it to
     # the surrogate.
