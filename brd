@@ -194,6 +194,13 @@ def parse_args():
     delroot_mode = subparsers.add_parser('delroot',
                                       help='Removes roots and their contents ' +
                                          'from the database.')
+    delroot_mode.add_argument('--use-root', default='',
+                              help='Strip path information from all targets ' +
+                              'and replace with the specified string when ' +
+                              'interacting with the database.')
+    delroot_mode.add_argument('--root-prefix', default='',
+                              help='Append the specified string to all ' +
+                              'targets when interacting with the database.')
     delroot_mode.add_argument('target', nargs='+', default='',
                            help='Root to remove.')
 
@@ -442,6 +449,7 @@ def process_file(node, filename, mode, file_db_dict, cursor):
         ret_val['added'] = 1
         return ret_val
 
+### \/\/ Deprecated! \/\/
 def get_root_from_db(cursor, rootdir):
     """Searches the database using the specified cursor object for the first
     record in the roots table with the same name. If no record exists, one is 
@@ -469,6 +477,7 @@ def get_root_from_db(cursor, rootdir):
 
     # Return Root_ID for this root
     return ret_val
+### /\/\ Deprecated! /\/\
 
 def get_dir_items_from_db(cursor, parent_id, check_files):
     """Searches the database using the specified cursor object for all items
@@ -661,18 +670,19 @@ def scan_target(target, db_conn):
     cursor = db_conn.cursor()
 
     # Attempt to resolve the target
-    target_info = resolve_target(target, cursor)
+    target_info = resolve_target(target, cursor, True)
 
     # If nothing returned, assume the specified target is a new root.
-    if target_info == None:
-        root_info = get_root_from_db(cursor, target)
-        return crawl_tree(target, root_info[0], root_info[1], cursor)
-    else:
+#    if target_info == None:
+#        root_info = get_root_from_db(cursor, target)
+ #       return crawl_tree(target, root_info[0], root_info[1], cursor)
+ #   else:
         # Otherwise, start crawling in the specified subtree
-        cursor.execute("SELECT LastChecked FROM '" + table_names['dirs'] + 
-                       "' WHERE Path_ID=?", (target_info['dir_id'],))
-        row = cursor.fetchone()
-        return crawl_tree(target, target_info['dir_id'], row[0], cursor)
+        #cursor.execute("SELECT LastChecked FROM '" + table_names['dirs'] + 
+        #               "' WHERE Path_ID=?", (target_info['dir_id'],))
+        #row = cursor.fetchone()
+    return crawl_tree(target, target_info['dir_id'], 
+                      target_info['last_checked'], cursor)
         
 def crawl_tree(rootdir, dir_id, last_checked, cursor):
     """Crawls the specified directory, processing all files that it finds.
@@ -1438,13 +1448,13 @@ def del_roots(db_conn):
 
     # Get DB cursor object
     cursor = db_conn.cursor()
-
     for target in cmd_args.target:
         # Remove any trailing OS separators and split into tokens
         target = target.rstrip(os.sep)
+### BUG! Does not delete the target...
 
         # Check for root in database
-        dir_id = get_root_from_db(cursor, target)[0]
+        dir_id = resolve_target(target, cursor, False)['dir_id']
         dir_db_data = get_dir_items_from_db(cursor, dir_id, True)
     
         # Delete tree
@@ -1460,7 +1470,7 @@ def del_roots(db_conn):
     logging.info("    Files: %s", file_stats['missing'])
     logging.info('    Directories: %s', dir_stats['missing'])
 
-def resolve_target(target, cursor):
+def resolve_target(target, cursor, add_root=False):
     """Attempts to resolve the specified target into root name + subdir. Returns
     a dict containing the root/dir/file names and IDs. Nonappicable fields will 
     be None. If the root cannot be resolved, None is returned.
@@ -1492,7 +1502,8 @@ def resolve_target(target, cursor):
     idx = 1
     tmp_root = path_nodes[0]
     while parent_id < 0:
-        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+        cursor.execute("SELECT Path_ID,LastChecked FROM '" + 
+                       table_names['dirs'] + 
                        "' WHERE Parent_ID=? AND Name=?", (parent_id, 
                                                           tmp_root) )
         tmp_row = cursor.fetchone()
@@ -1500,6 +1511,15 @@ def resolve_target(target, cursor):
             if idx < len(path_nodes):
                 tmp_root = os.path.join(tmp_root, path_nodes[idx])
                 idx += 1
+            elif add_root:
+                # Add to database, if appropriate.
+                logging.debug("Unable to locate target '%s'. " + 
+                              "Adding as new root.", target)
+                cursor.execute("INSERT INTO '" + table_names['dirs'] + 
+                               "'(Name,Parent_ID) VALUES(?,?)", 
+                               (target,-1))
+                parent_id = -1
+                tmp_row = (cursor.lastrowid, '')
             else:
                 logging.debug("Can't find root for %s!", target)
                 return ret_val
@@ -1508,12 +1528,19 @@ def resolve_target(target, cursor):
 
     logging.debug("Found root '%s' in target '%s'", tmp_root, target)
     ret_val = {'root_name' : tmp_root, 'root_id' : parent_id, 'dir_name' : None,
-               'dir_id' : None, 'file_name' : None, 'file_id' : None }
+               'dir_id' : None, 'last_checked' : '', 'file_name' : None, 
+               'file_id' : None }
+    logging.debug("idx: %s of %s", idx, len(path_nodes))
+    if len(path_nodes) <= idx:
+        ret_val['dir_id'] = tmp_row[0]
+        ret_val['last_checked'] = tmp_row[1]
+        return ret_val
 
     for idx in xrange(idx, len(path_nodes)-1):
         logging.debug("Checking for directory '%s' in parent ID %s", 
                       path_nodes[idx], parent_id)
-        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+        cursor.execute("SELECT Path_ID,LastChecked FROM '" + 
+                       table_names['dirs'] + 
                        "' WHERE Parent_ID=? AND Name=?", (parent_id, 
                                                           path_nodes[idx]) )
         tmp_row = cursor.fetchone()
@@ -1530,7 +1557,8 @@ def resolve_target(target, cursor):
     if idx < len(path_nodes):
         logging.debug("Checking for directory '%s' in parent ID %s", 
                       path_nodes[-1], parent_id)
-        cursor.execute("SELECT Path_ID FROM '" + table_names['dirs'] + 
+        cursor.execute("SELECT Path_ID,LastChecked FROM '" + 
+                       table_names['dirs'] + 
                        "' WHERE Parent_ID=? AND Name=?", (parent_id, 
                                                           path_nodes[-1]) )
         tmp_row = cursor.fetchone()
@@ -1542,6 +1570,7 @@ def resolve_target(target, cursor):
                       path_nodes[-1], tmp_row[0], parent_id)
         ret_val['dir_name'] = path_nodes[-1]
         ret_val['dir_id'] = tmp_row[0]
+        ret_val['last_checked'] = tmp_row[1]
         logging.debug("Found target directory '%s' (%s) in root '%s' (%s)", 
                       ret_val['dir_name'], ret_val['dir_id'], 
                       ret_val['root_name'], ret_val['root_id'])
@@ -1563,7 +1592,8 @@ def resolve_target(target, cursor):
                           ret_val['root_name'], ret_val['root_id'])
             
         else:
-            logging.info("Unable to locate target '%s'!", target)
+            logging.info("Unable to locate target '%s'.", target)
+
 
     return ret_val
 
