@@ -67,7 +67,7 @@ class BrdUnitBase(unittest.TestCase):
             self.conn = sqlite3.connect(database=db_url, 
                                         detect_types=sqlite3.PARSE_DECLTYPES)
         else:
-            self.conn brd.open_db( db_url )
+            self.conn = brd.open_db( db_url )
 
     def populate_db_table(self, table_name, table_data):
         """Populates the specified table of the currently open SQLite database
