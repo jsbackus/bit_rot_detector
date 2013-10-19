@@ -7,9 +7,16 @@ import shutil
 import unittest
 import sys
 
+# Build path to brd script
+script_name = os.path.join( os.path.dirname( os.path.dirname( 
+            os.path.abspath(__file__) ) ), 'brd')
+
 # Import brd in order to use some of its functions
-#sys.path.insert(1, os.path.join(sys.path[0], 'site_modules'))
-sys.path.insert(1, '..')
+# Note: We need to create a symbolic link to "rename" 'brd' to 'brd.py' so
+# that import will find it.
+if not os.path.exists('brd.py'):
+    os.link(script_name , 'brd.py' )
+
 import brd
 
 class BrdUnitBase(unittest.TestCase):
@@ -17,21 +24,18 @@ class BrdUnitBase(unittest.TestCase):
     functions but does not perform any tests.
     """
 
-    def __init__(self):
+    def setUp(self):
         """Initialize data structures
         """
 
-        # Call base class initializer
-        super(BrdUnitBase,self).__init__()
-
         # Define table names
-        table_names = brd.table_names
+        self.table_names = brd.table_names
         
-        # Define script name
-        script_name = '../brd'
+        # Store script name/location for subclasses
+        self.script_name = script_name
         
         # Define default database name
-        default_db = os.path.basename(script_name) + '.db'
+        self.default_db = os.path.basename(self.script_name) + '.db'
 
     def read_in_chunks(self, file_obj, chunk_size=1024*1024):
         """Generator to read data from the specified file in chunks.

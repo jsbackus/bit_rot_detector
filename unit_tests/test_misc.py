@@ -4,8 +4,7 @@ import os
 from brd_unit_base import BrdUnitBase
 
 # Import brd in order to use some of its functions
-#sys.path.insert(1, os.path.join(sys.path[0], 'site_modules'))
-sys.path.insert(1, '..')
+# Note: we're expecting brd_unit_base to take care of path stuff
 import brd
 
 class TestMisc(BrdUnitBase):
@@ -13,8 +12,8 @@ class TestMisc(BrdUnitBase):
     """
 
     def setUp(self):
-        # To do
-        pass
+        # Call superclass's setup routine.
+        super(TestMisc,self).setUp()
 
     def test_table_names(self):
         """Verifies table names.
@@ -34,8 +33,9 @@ class TestMisc(BrdUnitBase):
 
         db_url = './test.db'
 
-        # Make sure database doesn't exist
-        os.remove( db_url )
+        # Make sure database doesn't exist. If it does, clobber it.
+        if os.path.exists( db_url ):
+            os.remove( db_url )
 
         # Call open_db, which should create db and its tables
         self.conn = brd.open_db( db_url )
@@ -43,12 +43,7 @@ class TestMisc(BrdUnitBase):
         # Verify that file exists
 
         # Verify that files table exist
-        self.assertTrue( self.find_table( table_names['files'] ) )
+        self.assertTrue( self.find_table( self.table_names['files'] ) )
         
         # Verify that dirs table exists
-        self.assertTrue( self.find_table( table_names['dirs'] )
-
-
-### Main Entry ###
-if __name__ == '__main__':
-    unittest.main()
+        self.assertTrue( self.find_table( self.table_names['dirs'] ) )

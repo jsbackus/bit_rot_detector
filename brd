@@ -1791,67 +1791,68 @@ def check_db():
 # Main #
 ########
 
-# Start timer
-cpu_start_time = time.clock()
-real_start_time = time.time()
+if __name__ == '__main__':
+    # Start timer
+    cpu_start_time = time.clock()
+    real_start_time = time.time()
 
-# Parse command-line arguments
-cmd_args = parse_args()
+    # Parse command-line arguments
+    cmd_args = parse_args()
 
-# Set up logger
-setup_logger(cmd_args.verbose,cmd_args.debug,cmd_args.log)
-logging.debug('Command-line arguments: %s', vars(cmd_args))
+    # Set up logger
+    setup_logger(cmd_args.verbose,cmd_args.debug,cmd_args.log)
+    logging.debug('Command-line arguments: %s', vars(cmd_args))
 
-ok_to_prune = False
+    ok_to_prune = False
 
-try:
-    if cmd_args.subcommand == 'scan':
-        if cmd_args.prune:
-            ok_to_prune = True
-        # Open fingerprint database
-        with open_db(cmd_args.db) as db_conn:
-            # Scan each specified root.
-            for target in cmd_args.target:
-                if (scan_target(target, db_conn) != 0):
-                    break
-        if cmd_args.progress:
-            sys.stdout.write('\r\n')
-
-    elif cmd_args.subcommand == 'dupe_files':
-        # Open fingerprint database
-        with open_db(cmd_args.db) as db_conn:
-            check_dupe_files(db_conn)
-            
-    elif cmd_args.subcommand == 'dupe_trees':
-        # Open fingerprint database
+    try:
+        if cmd_args.subcommand == 'scan':
+            if cmd_args.prune:
+                ok_to_prune = True
+            # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
-                check_dupe_trees(db_conn)
+                # Scan each specified root.
+                for target in cmd_args.target:
+                    if (scan_target(target, db_conn) != 0):
+                        break
+            if cmd_args.progress:
+                sys.stdout.write('\r\n')
 
-    elif cmd_args.subcommand == 'diffroot':
-        # Open fingerprint database
-        with open_db(cmd_args.db) as db_conn:
-            diff_trees(db_conn, cmd_args.target[0], cmd_args.target[1])
-            
-    elif cmd_args.subcommand == 'list':
-        # Open fingerprint database
-        with open_db(cmd_args.db) as db_conn:
-            for target in cmd_args.target:
-                list_db(db_conn, target)
-            
-    if cmd_args.subcommand == 'delroot':
-        ok_to_prune = True
-        # Open fingerprint database
-        with open_db(cmd_args.db) as db_conn:
-            del_roots(db_conn)
+        elif cmd_args.subcommand == 'dupe_files':
+            # Open fingerprint database
+            with open_db(cmd_args.db) as db_conn:
+                check_dupe_files(db_conn)
 
-    elif cmd_args.subcommand == 'checkdb':
-        check_db()
+        elif cmd_args.subcommand == 'dupe_trees':
+            # Open fingerprint database
+                with open_db(cmd_args.db) as db_conn:
+                    check_dupe_trees(db_conn)
 
-except KeyboardInterrupt:
-    # Catch here also, in case it was missed earlier.
-    logging.error("Interrupt detected! Aborting")
-    pass
+        elif cmd_args.subcommand == 'diffroot':
+            # Open fingerprint database
+            with open_db(cmd_args.db) as db_conn:
+                diff_trees(db_conn, cmd_args.target[0], cmd_args.target[1])
 
-# Fini!
-logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
-             time.time() - real_start_time, time.clock() - cpu_start_time)
+        elif cmd_args.subcommand == 'list':
+            # Open fingerprint database
+            with open_db(cmd_args.db) as db_conn:
+                for target in cmd_args.target:
+                    list_db(db_conn, target)
+
+        if cmd_args.subcommand == 'delroot':
+            ok_to_prune = True
+            # Open fingerprint database
+            with open_db(cmd_args.db) as db_conn:
+                del_roots(db_conn)
+
+        elif cmd_args.subcommand == 'checkdb':
+            check_db()
+
+    except KeyboardInterrupt:
+        # Catch here also, in case it was missed earlier.
+        logging.error("Interrupt detected! Aborting")
+        pass
+
+    # Fini!
+    logging.info('Finished. Total Run Time = %.4f seconds (%.4f CPU seconds)', 
+                 time.time() - real_start_time, time.clock() - cpu_start_time)
