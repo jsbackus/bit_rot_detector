@@ -15,13 +15,35 @@ script_name = os.path.join( os.path.dirname( os.path.dirname(
 # Note: We need to create a symbolic link to "rename" 'brd' to 'brd.py' so
 # that import will find it.
 if not os.path.exists('brd.py'):
-    os.link(script_name , 'brd.py' )
+    os.symlink(script_name , 'brd.py' )
 
 import brd
 
 class BrdUnitBase(unittest.TestCase):
     """Base class for all brd-related unit tests. Provides various support
     functions but does not perform any tests.
+
+    Many functions use a 'table data' data structure that contains information
+    on directories and files. Each key represents a file or directory and each
+    key's value is a dictionary that conforms to the following:
+    * Directories:
+      - 'Name' : record's name
+      - 'children' : Dict of Children
+      - 'Path_ID' : record's path ID
+      - 'Parent_ID' : record's parent ID
+      - 'LastChecked' : record's LastChecked value
+    * Files:
+      - 'Name' : record's name
+      - 'contents' : A string containing the files contents.
+      - 'File_ID' : record's file ID
+      - 'Parent_ID' : record's parent ID
+      - 'LastModified' : record's LastModified value
+      - 'Fingerprint' : record's fingerprint
+      - 'Size' : record's file size
+    The exception to the above is the top-level, which is a dict that conforms
+    to the following:
+    * 'roots': A dict of directories that are root directories.
+    * 'Name': The name of the top-level directory
     """
 
     def setUp(self):
@@ -37,6 +59,17 @@ class BrdUnitBase(unittest.TestCase):
         # Define default database name
         self.default_db = os.path.basename(self.script_name) + '.db'
 
+        # Remove the database, if it exists
+        if os.path.exists( self.default_db ):
+            os.unlink( self.default_db )
+
+    def tearDown(self):
+        """General cleanup
+        """
+        # Remove the database, if it exists
+#        if os.path.exists( self.default_db ):
+#            os.unlink( self.default_db )
+        
     def read_in_chunks(self, file_obj, chunk_size=1024*1024):
         """Generator to read data from the specified file in chunks.
         Default chunk size is 1M.
@@ -47,7 +80,7 @@ class BrdUnitBase(unittest.TestCase):
                 break
             yield data
 
-    def calc_fingerprint(self, filename, file_size=0):
+    def calc_fingerprint(self, filename):
         """Returns a string containing the SHA1 fingerprint of this file.
         """
         # Create a new SHA1 object and read from the specified file in chunks.
@@ -55,7 +88,7 @@ class BrdUnitBase(unittest.TestCase):
     
         # Read file data
         with open(filename, 'rb') as f:
-            for read_data in read_in_chunks(f):
+            for read_data in self.read_in_chunks(f):
                 result.update(read_data)
 
         # Return fingerprint
@@ -74,28 +107,63 @@ class BrdUnitBase(unittest.TestCase):
             self.conn = brd.open_db( db_url )
 
     def populate_db_table(self, table_name, table_data):
-        """Populates the specified table of the currently open SQLite database
+       """Populates the specified table of the currently open SQLite database
         with the data in the list of dictionaries. Expects the keys of each
         dictionary to match the columns of the table.
         """
 
-        # Get a cursor object
-        cursor = self.conn.cursor()
+       # Get a cursor object
+       cursor = self.conn.cursor()
 
-        for row in table_data:
-            # Build lists of column names and column data
-            cols = ()
-            data = ()
-            for entry in row.keys():
-                cols += ( entry, )
-                data += ( row[ entry ], )
+       for row in table_data:
+           # Build lists of column names and column data
+           cols = ()
+           data = ()
+           for entry in row.keys():
+               cols += ( entry, )
+               data += ( row[ entry ], )
+               
+           # Execute SQL statement
+           colStr = '(' + ','.join(cols) + ')'
+           dataStr = ' VALUES(' + ('?,' * (len(data) -1)) + '?)'
+           cursor.execute("INSERT INTO '" + table_name  + "' " + colStr +
+                          dataStr, data)
+       self.conn.commit()
 
-            # Execute SQL statement
-            colStr = '(' + ('?,' * (len(cols) -1)) + '?) '
-            dataStr = 'VALUES(' + ('?,' * (len(data) -1)) + '?)'
-            cursor.execute("INSERT INTO '" + table_name  + "' " + colStr +
-                           dataStr, cols + data)
+    def populate_db_from_tree(self, tree_data):
+        """Uses populate_db_table() to populate the database with the values
+        for the specified tree.
+        """
+        
+        dir_table_info = []
+        file_table_info = []
 
+        # Maintain a queue of entries so that we can keep track of children.
+        # Then go through each child, adding its info and any of its children
+        # to the queue
+        item_queue = [ ]
+        for entry in tree_data['roots'].keys():
+            item_queue.append( tree_data['roots'][ entry ] )
+
+        while 0 < len(item_queue):
+            item = item_queue.pop()
+            
+            if item.has_key('Path_ID'):
+                # directory. Add children to queue, remove children entry
+                # and add item to dir table.
+                for child in item['children'].keys():
+                    item_queue.append( item[ 'children' ][ child ] )
+                del( item['children'] )
+                dir_table_info.append( item )
+            else:
+                # file. Remove the contents column and then add to file table.
+                del( item['contents'] )
+                file_table_info.append( item )
+
+        # Populate dirs table
+        self.populate_db_table( self.table_names['dirs'], dir_table_info )
+        # Populate files table
+        self.populate_db_table( self.table_names['files'], file_table_info )
 
     def find_table(self, table_name):
         """Checks to see if the database contains a table with the specified 
@@ -115,27 +183,88 @@ class BrdUnitBase(unittest.TestCase):
         # Didn't find it
         return False
 
-    def build_dir(self, dir_dict, parent=''):
-        """Builds a directory structure based on the specified dictionary. Keys
-        that have dictionaries for values become directories. Keys that have 
-        strings for values become files with the string as contents. 
+    def build_tree(self, tree_data, parent=''):
+        """Builds a directory structure based on the specified table data
+        data structure.
         Note: Recursive!
         """
 
-        for entry in dir_dict.keys():
-            path = parent + dir_dict[ entry ]
-            if type( dir_dict[ entry ] ) == 'dict':
-                # Make the directory
+        if len( parent ) <= 0:
+            # Top level. Create a directory with the name in 'name' then
+            # recursively process roots.
+            if os.path.exists( tree_data['Name'] ):
+                self.del_tree( tree_data['Name'] )
+
+            os.mkdir( tree_data['Name'] )
+            for subtree in tree_data['roots'].keys():
+                self.build_tree( tree_data['roots'][subtree], 
+                                 tree_data['Name'] )
+        else:
+            path = os.path.join( parent, tree_data['Name'] )
+            # tree_data is a subtree or file. See which, then handle accordingly
+            if tree_data.has_key('Path_ID'):
+                # Directory. Create it and recursively process children
                 os.mkdir( path )
 
-                # Process its children
-                self.build_dir( dir_dict[ entry ], path )
-            elif type( dir_dict[ entry ] ) == 'str':
-                # Open file and dump contents to it
+                for subtree in tree_data['children'].keys():
+                    self.build_tree( tree_data['children'][subtree], path )
+            else:
+                # File. Open it and dump contents to it
                 with open(path, 'wt') as f:
-                    f.write( dir_dict[ entry ] + os.linesep )
+                    f.write( tree_data['contents'] + os.linesep )
                 
-    def del_dir(self, path):
+    def del_tree(self, path):
         """Calls shutil.rmtree to remove the specified directory tree.
         """
         shutil.rmtree(path)
+
+    def get_schema_1(self):
+        """Builds and returns a table_data object for general test.
+        """
+        table_data = { 'roots': dict(), 'Name': 'test_tree' }
+
+        tmp_dir = { 'Path_ID': 5, 'Parent_ID': 4, 'LastChecked': None,
+                    'children': dict(), 'Name': 'LeafA' }
+        tmp_file = { 'contents': 'a'*256, 'File_ID': 1, 'Parent_ID': 5,
+                     'LastModified': None, 'Size': 257,
+                     'Fingerprint': '1a0372738bb5b4b8360b47c4504a27e6f4811493',
+                     'Name': 'BunchOfAs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+
+        tmp_file = { 'contents': 'b'*256, 'File_ID': 2, 'Parent_ID': 5,
+                     'LastModified': None, 'Size': 257,
+                     'Fingerprint': 'fa75bf047f45891daee8f1fa4cd2bf58876770a5', 
+                     'Name': 'BunchOfBs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+
+        tmp_dir = { 'Path_ID': 4, 'Parent_ID': 3, 'LastChecked': None,
+                    'Name': 'DirA', 'children': { tmp_dir['Name'] : tmp_dir } }
+        
+        tmp_dir = { 'Path_ID': 3, 'Parent_ID': 1, 'LastChecked': None,
+                    'Name': 'TreeA', 'children': { tmp_dir['Name'] : tmp_dir } }
+        
+        tmp_dir = { 'Path_ID': 1, 'Parent_ID': -1, 'LastChecked': None,
+                    'Name': 'rootA', 'children': { tmp_dir['Name'] : tmp_dir } }
+        
+        table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
+
+        tmp_dir = { 'Path_ID': 2, 'Parent_ID': 1, 'LastChecked': None,
+                    'children': dict(), 'Name': 'LeafB' }
+
+        tmp_file = { 'contents': 'a'*256, 'File_ID': 3, 'Parent_ID': 2,
+                     'LastModified': None, 'Size': 257,
+                     'Fingerprint': '1a0372738bb5b4b8360b47c4504a27e6f4811493',
+                     'Name': 'BunchOfAs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+
+
+        tmp_file = { 'contents': 'b'*256, 'File_ID':4, 'Parent_ID': 2,
+                     'LastModified': None, 'Size': 257,
+                     'Fingerprint': 'fa75bf047f45891daee8f1fa4cd2bf58876770a5', 
+                     'Name': 'BunchOfBs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+        
+        table_data['roots']['rootA']['children'][ tmp_dir['Name'] ] = tmp_dir
+
+        return table_data
+    

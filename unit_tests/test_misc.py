@@ -41,9 +41,13 @@ class TestMisc(BrdUnitBase):
         self.conn = brd.open_db( db_url )
 
         # Verify that file exists
+        self.assertTrue( os.path.exists( db_url ) )
 
         # Verify that files table exist
         self.assertTrue( self.find_table( self.table_names['files'] ) )
         
         # Verify that dirs table exists
         self.assertTrue( self.find_table( self.table_names['dirs'] ) )
+
+#    def test_pfft(self):
+#        self.build_tree( self.get_schema_1() )

@@ -1,5 +1,4 @@
-*~
+brd.py
 *.db
 *.pyc
 *.sha1
-log.txt
