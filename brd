@@ -179,7 +179,16 @@ def parse_args():
                                          'order to verify it.')
     checkdb_mode.add_argument('-P', '--progress', action='store_true',
                               help='Displays progress meter.')
-
+    checkdb_mode.add_argument('--check-only', action='store_true',
+                              help='Calculates and compares the fingerprint ' +
+                              'the database against the fingerprint file but ' +
+                              'does not update the fingerprint file if the ' +
+                              'database has been modified since the file was ' +
+                              'last updated.')
+    checkdb_mode.add_argument('--dry-run', action='store_true', 
+                              dest='check-only', 
+                              help='Alias for --check-only.')
+    
     # list subparser
     list_mode = subparsers.add_parser('list',
                                       help='Displays database contents')
@@ -1716,6 +1725,7 @@ def list_db(db_conn, target):
 def write_db_fp(sha1, filename):
     """Helper function to write the specified sha1 to the specified filename.
     """
+
     try:
         fh = io.open(filename, 'wt')
         payload = sha1 + os.linesep
@@ -1769,10 +1779,16 @@ def check_db():
             # Check modification times.
             fp_stat = os.stat(fp_file)
             if fp_stat.st_mtime < db_stat.st_mtime:
-                # Database has been touched since last fingerprint. Update.
-                logging.info("Database '" + fullname + "' newer than " +
-                             "fingerprint file '" + fp_file + "'. Updating...")
-                write_db_fp(fp, fp_file)
+                # Database has been touched since last fingerprint. Update,
+                # if appropriate
+                if cmd_args.check_only:
+                    logging.info("Database '" + fullname + "' newer than " +
+                                 "fingerprint file '" + fp_file + "'!")
+                else:
+                    logging.info("Database '" + fullname + "' newer than " +
+                                 "fingerprint file '" + fp_file + 
+                                 "'. Updating...")
+                    write_db_fp(fp, fp_file)
             else:
                 # Looks like something squirrelly is going on. Alert user.
                 logging.warning("Database '" + fullname + "' does not match " +
@@ -1783,9 +1799,12 @@ def check_db():
             logging.info("Database fingerprint matches previous fingerprint.")
 
     except IOError:
-        logging.info("Unable to open fingerprint file '" + fp_file + 
-                     "'. Generating a new one.")
-        write_db_fp(fp, fp_file)
+        if cmd_args.check_only:
+            logging.info("Unable to open fingerprint file '" + fp_file + "'!")
+        else:
+            logging.info("Unable to open fingerprint file '" + fp_file + 
+                         "'. Generating a new one.")
+            write_db_fp(fp, fp_file)
 
 ########
 # Main #

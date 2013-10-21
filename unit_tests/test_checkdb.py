@@ -87,3 +87,81 @@ class TestCheckDB(BrdUnitBase):
             got_fp = f.readline().rstrip(os.linesep)
 
         self.assertEqual( expect_fp, got_fp )
+
+    def test_check_only(self):
+        """Tests the --check-only option on an updated database.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+        # Close connection
+        self.conn.close()
+
+        # Verify that the fingerprint file does not already exist
+        self.assertTrue( not os.path.exists( self.default_fp_file ) )
+
+        # Check the database
+        os.system( self.script_name + ' checkdb' )
+
+        # Verify that the fingerprint file now exists
+        self.assertTrue( os.path.exists( self.default_fp_file ) )
+
+        # Verify its contents
+        expect_fp = self.calc_fingerprint( self.default_db )
+        with open( self.default_fp_file, 'rt' ) as f:
+            orig_fp = f.readline().rstrip(os.linesep)
+
+        # Open database again, and this time populate it with schema 1.
+        self.open_db( self.default_db, False )
+        self.populate_db_from_tree( self.get_schema_1() )
+        self.conn.close()
+
+        # Check the database
+        os.system( self.script_name + ' checkdb --check-only' )
+
+        # Verify that the contents of the fingerprint file haven't changed.
+        expect_fp = self.calc_fingerprint( self.default_db )
+        with open( self.default_fp_file, 'rt' ) as f:
+            new_fp = f.readline().rstrip(os.linesep)
+
+        self.assertNotEqual( expect_fp, new_fp )
+        self.assertEqual( orig_fp, new_fp )
+
+    def test_dry_run(self):
+        """Tests the --dry-run option on an updated database.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+        # Close connection
+        self.conn.close()
+
+        # Verify that the fingerprint file does not already exist
+        self.assertTrue( not os.path.exists( self.default_fp_file ) )
+
+        # Check the database
+        os.system( self.script_name + ' checkdb' )
+
+        # Verify that the fingerprint file now exists
+        self.assertTrue( os.path.exists( self.default_fp_file ) )
+
+        # Verify its contents
+        expect_fp = self.calc_fingerprint( self.default_db )
+        with open( self.default_fp_file, 'rt' ) as f:
+            orig_fp = f.readline().rstrip(os.linesep)
+
+        # Open database again, and this time populate it with schema 1.
+        self.open_db( self.default_db, False )
+        self.populate_db_from_tree( self.get_schema_1() )
+        self.conn.close()
+
+        # Check the database
+        os.system( self.script_name + ' checkdb --check-only' )
+
+        # Verify that the contents of the fingerprint file haven't changed.
+        expect_fp = self.calc_fingerprint( self.default_db )
+        with open( self.default_fp_file, 'rt' ) as f:
+            new_fp = f.readline().rstrip(os.linesep)
+
+        self.assertNotEqual( expect_fp, new_fp )
+        self.assertEqual( orig_fp, new_fp )
