@@ -192,6 +192,13 @@ def parse_args():
     # list subparser
     list_mode = subparsers.add_parser('list',
                                       help='Displays database contents')
+    list_mode.add_argument('--use-root', default='',
+                           help='Strip path information from all targets and ' +
+                           'replace with the specified string when ' +
+                           'interacting with the database.')
+    list_mode.add_argument('--root-prefix', default='',
+                           help='Append the specified string to all targets ' +
+                           'when interacting with the database.')
     list_mode.add_argument('-e', '--expanded', action='store_true',
                            help="Display additional info for directories.")
     list_mode.add_argument('-m', '--minimal', action='store_true',
@@ -1624,7 +1631,7 @@ def list_db(db_conn, target):
 
     count = 0
 
-    if (target_info['dir_name'] != None):
+    if (target_info['dir_id'] != None):
         # Retrieve all children
         parent_id = target_info['dir_id']
         if (not cmd_args.minimal) or (1 < len(cmd_args.target)):
