@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
+
 import unittest
 import os
+
 from brd_unit_base import BrdUnitBase
 
 # Import brd in order to use some of its functions
@@ -51,3 +53,7 @@ class TestMisc(BrdUnitBase):
 
 #    def test_pfft(self):
 #        self.build_tree( self.get_schema_1() )
+
+# Allow unit test to run on its own
+if __name__ == '__main__':
+    unittest.main()

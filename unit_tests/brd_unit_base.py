@@ -67,8 +67,8 @@ class BrdUnitBase(unittest.TestCase):
         """General cleanup
         """
         # Remove the database, if it exists
-#        if os.path.exists( self.default_db ):
-#            os.unlink( self.default_db )
+        if os.path.exists( self.default_db ):
+            os.unlink( self.default_db )
         
     def read_in_chunks(self, file_obj, chunk_size=1024*1024):
         """Generator to read data from the specified file in chunks.
@@ -225,13 +225,13 @@ class BrdUnitBase(unittest.TestCase):
 
         tmp_dir = { 'Path_ID': 5, 'Parent_ID': 4, 'LastChecked': None,
                     'children': dict(), 'Name': 'LeafA' }
-        tmp_file = { 'contents': 'a'*256, 'File_ID': 1, 'Parent_ID': 5,
+        tmp_file = { 'contents': 'a'*256, 'File_ID': 2, 'Parent_ID': 5,
                      'LastModified': None, 'Size': 257,
                      'Fingerprint': '1a0372738bb5b4b8360b47c4504a27e6f4811493',
                      'Name': 'BunchOfAs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
 
-        tmp_file = { 'contents': 'b'*256, 'File_ID': 2, 'Parent_ID': 5,
+        tmp_file = { 'contents': 'b'*256, 'File_ID': 3, 'Parent_ID': 5,
                      'LastModified': None, 'Size': 257,
                      'Fingerprint': 'fa75bf047f45891daee8f1fa4cd2bf58876770a5', 
                      'Name': 'BunchOfBs.txt' }
@@ -251,20 +251,27 @@ class BrdUnitBase(unittest.TestCase):
         tmp_dir = { 'Path_ID': 2, 'Parent_ID': 1, 'LastChecked': None,
                     'children': dict(), 'Name': 'LeafB' }
 
-        tmp_file = { 'contents': 'a'*256, 'File_ID': 3, 'Parent_ID': 2,
+        tmp_file = { 'contents': 'a'*256, 'File_ID': 4, 'Parent_ID': 2,
                      'LastModified': None, 'Size': 257,
                      'Fingerprint': '1a0372738bb5b4b8360b47c4504a27e6f4811493',
                      'Name': 'BunchOfAs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
 
 
-        tmp_file = { 'contents': 'b'*256, 'File_ID':4, 'Parent_ID': 2,
+        tmp_file = { 'contents': 'b'*256, 'File_ID':5, 'Parent_ID': 2,
                      'LastModified': None, 'Size': 257,
                      'Fingerprint': 'fa75bf047f45891daee8f1fa4cd2bf58876770a5', 
                      'Name': 'BunchOfBs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
         
         table_data['roots']['rootA']['children'][ tmp_dir['Name'] ] = tmp_dir
+
+        tmp_file = { 'contents': 'c'*256, 'File_ID':1, 'Parent_ID': 1,
+                     'LastModified': None, 'Size': 257,
+                     'Fingerprint': 'ff3785f53b503b7adb7e7a3b9eeef255eac0e276', 
+                     'Name': 'BunchOfCs.txt' }
+
+        table_data['roots']['rootA']['children'][ tmp_file['Name'] ] = tmp_file
 
         return table_data
     

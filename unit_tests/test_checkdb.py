@@ -1,7 +1,9 @@
 from __future__ import unicode_literals
-from brd_unit_base import BrdUnitBase
 
 import os
+import unittest
+
+from brd_unit_base import BrdUnitBase
 
 # Import brd in order to use some of its functions
 # Note: we're expecting brd_unit_base to take care of path stuff
@@ -165,3 +167,7 @@ class TestCheckDB(BrdUnitBase):
 
         self.assertNotEqual( expect_fp, new_fp )
         self.assertEqual( orig_fp, new_fp )
+
+# Allow unit test to run on its own
+if __name__ == '__main__':
+    unittest.main()
