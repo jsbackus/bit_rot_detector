@@ -3,6 +3,8 @@ from __future__ import unicode_literals
 import os
 import subprocess
 import unittest
+import datetime
+import time
 
 from brd_unit_base import BrdUnitBase
 
@@ -41,6 +43,33 @@ class TestList(BrdUnitBase):
         scr_out = subprocess.check_output([self.script_name, 'list', 
                                            'rootA'])
 
+        # Verify output
+        self.assertEqual( scr_out, exp_out )
+
+    def test_file_target(self):
+        """Tests list subcommand with one directory target.
+        """
+
+        mod_time = int(time.time())
+        exp_out = os.linesep.join( ( 'Files matching rootA/BunchOfCs.txt:', '',
+                                     'BunchOfCs.txt:', '    ID: 1',
+                                     '    Last Modified: ' + str(
+                    datetime.datetime.fromtimestamp(mod_time) ),
+                                     '    Fingerprint: 0xff3785f53b503b7adb7e' +
+                                     '7a3b9eeef255eac0e276',
+                                     '    Size: 257 bytes', '',
+                                     '1 entries listed.', '', '' ) )
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( self.get_schema_1( mod_time ) )
+        self.conn.close()
+
+        # Attempt to list contents
+        scr_out = subprocess.check_output([self.script_name, 'list', 
+                                           'rootA/BunchOfCs.txt'])
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
