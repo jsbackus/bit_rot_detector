@@ -569,22 +569,6 @@ def add_dir(path, parent_id, cursor):
     Returns the new entry's Path_ID.
     """
 
-    # force item name to unicode. First try to convert from
-    # default encoding. If that doesn't work, try forcing to
-    # cp437, which is the default Windows encoding.
-    try:
-        path = path.encode('utf8')
-    except UnicodeDecodeError as e1:
-        try:
-            path = path.decode('cp437').encode('utf8')
-        except UnicodeDecodeError as e2:
-            logging.warning("Attempts to encode path '" +
-                            path + "' in UTF-8 generated errors: ")
-            logging.warning("\tFrom default encoding: " + 
-                            e1.message)
-            logging.warning("\tFrom cp437 : " + e2.message)
-            return None
-    
     cursor.execute("INSERT INTO '" + table_names['dirs'] + 
                    "'(Name, Parent_ID) VALUES(?, ?)", 
                    (path, str(parent_id)))
@@ -776,7 +760,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                     entry = entry.encode('utf8')
                 except UnicodeDecodeError as e1:
                     try:
-                        entry = entry.decode('cp437').encode('utf8')
+                        entry = entry.decode('cp437')
                     except UnicodeDecodeError as e2:
                         logging.warning("Attempts to encode file/dir name '" +
                                         entry + "' in UTF-8 generated errors: ")
