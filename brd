@@ -578,8 +578,8 @@ def add_dir(path, parent_id, cursor):
         try:
             path = entry.decode('cp437').encode('utf8')
         except UnicodeDecodeError as e2:
-            logging.warning("Attempts to encode file/dir name '" +
-                            entry + "' in UTF-8 generated errors: ")
+            logging.warning("Attempts to encode path '" +
+                            path + "' in UTF-8 generated errors: ")
             logging.warning("\tFrom default encoding: " + 
                             e1.message)
             logging.warning("\tFrom cp437 : " + e2.message)
