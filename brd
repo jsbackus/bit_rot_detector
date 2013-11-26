@@ -573,7 +573,8 @@ def add_dir(path, parent_id, cursor):
                    "'(Name, Parent_ID) VALUES(?, ?)", 
                    (path, str(parent_id)))
     ret_val = (cursor.lastrowid, None)
-    logging.debug('Directory \'' + path + '\' added with ID = ' + str(ret_val))
+    logging.debug('Directory \'' + str(path) + '\' added with ID = ' + 
+                  str(ret_val))
     return ret_val
 
 def mark_dir_checked(dir_id, cursor):
@@ -662,14 +663,14 @@ def add_dicts(d1, d2):
     """
     ret_val = dict()
     for key in d1.keys():
-        if d2.has_key( key ):
+        if key in d2:
             ret_val[ key ] = d1[ key ] + d2[ key ]
         else:
             ret_val[ key ] = d1[ key ]
 
     for key in d1.keys():
-        if not ret_val.has_key( key ):
-            if d1.has_key( key ):
+        if not key in ret_val:
+            if key in d1:
                 ret_val[ key ] = d1[ key ] + d2[key]
             else:
                 ret_val[ key ] = d2[ key ]
@@ -756,18 +757,18 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
                 # force item name to unicode. First try to convert from
                 # default encoding. If that doesn't work, try forcing to
                 # cp437, which is the default Windows encoding.
-                try:
-                    entry = entry.encode('utf8')
-                except UnicodeDecodeError as e1:
-                    try:
-                        entry = entry.decode('cp437')
-                    except UnicodeDecodeError as e2:
-                        logging.warning("Attempts to encode file/dir name '" +
-                                        entry + "' in UTF-8 generated errors: ")
-                        logging.warning("\tFrom default encoding: " + 
-                                        e1.message)
-                        logging.warning("\tFrom cp437 : " + e2.message)
-                        continue
+                # try:
+                #     entry = entry.encode('utf8')
+                # except UnicodeDecodeError as e1:
+                #     try:
+                #         entry = entry.decode('cp437')
+                #     except UnicodeDecodeError as e2:
+                #         logging.warning("Attempts to encode file/dir name '" +
+                #                         entry + "' in UTF-8 generated errors: ")
+                #         logging.warning("\tFrom default encoding: " + 
+                #                         e1.message)
+                #         logging.warning("\tFrom cp437 : " + e2.message)
+                #         continue
 
                 # Grab entry filesystem stats
                 try:
@@ -963,12 +964,12 @@ def reconstruct_tree(cursor):
         else:
             # Check to see if this directory's parent is in the list.
             # If not, parent is a root, so check there.
-            if(ret_val['dirs'].has_key( entry[1] )):
+            if(entry[1] in ret_val['dirs']):
                 parent_node = ret_val['dirs'][ entry[1] ]
                 ret_val['dirs'][ entry[0] ] = (os.path.join( \
                         parent_node[0], entry[2] ), parent_node[1])
                 dir_node_count += 1
-            elif(ret_val['roots'].has_key( entry[1] )): 
+            elif(entry[1] in ret_val['roots']): 
                 ret_val['dirs'][ entry[0] ] = (os.path.join( "", entry[2] ), 
                                                entry[1] )
                 dir_node_count += 1
@@ -988,7 +989,7 @@ def gen_db_url(tree_info, parent_id, item):
 
     if parent_id < 0:
         ret_val = '[' + item + ']'
-    elif tree_info['dirs'].has_key( parent_id ):
+    elif parent_id in tree_info['dirs']:
         root_id = tree_info['dirs'][ parent_id ][1]
         ret_val = '[' + tree_info['roots'][ root_id ] + ']'
         ret_val = os.path.join(ret_val, tree_info['dirs'][ parent_id ][0], 
@@ -1168,7 +1169,7 @@ def check_dupe_trees(db_conn):
         dirs_by_id[ dir_id ] = [ dir_name, dir_parent, None ]
 
         # Add to dict of dirs by parent.
-        if not dirs_by_parent.has_key( dir_parent ):
+        if not dir_parent in dirs_by_parent:
             dirs_by_parent[ dir_parent ] = [ dir_id ]
         else:
             dirs_by_parent[ dir_parent ].append( dir_id )
@@ -1199,7 +1200,7 @@ def check_dupe_trees(db_conn):
         for dir_id in waiting_for_fp.keys():
             logging.debug("Checking dir ID %s", dir_id)
             # Make sure we haven't already removed this id from the list
-            if not waiting_for_fp.has_key( dir_id ):
+            if not dir_id in waiting_for_fp:
                 continue
 
             # Check children for any that still need to be fingerprinted.
@@ -1251,7 +1252,7 @@ def check_dupe_trees(db_conn):
                     
             # Add subdirectories, if appropriate
             if not (cmd_args.nosubdirname and cmd_args.nosubdirfp) and \
-                    dirs_by_parent.has_key( dir_id ):
+                    dir_id in dirs_by_parent:
                 # Build a list of { directory name -> fp }
                 tmp_dir_list = dict()
                 for entry in dirs_by_parent[ dir_id ]:
@@ -1268,7 +1269,7 @@ def check_dupe_trees(db_conn):
             # Finalize fingerprint and update data structures
             dir_fp = dir_fp.hexdigest()
             dirs_by_id[ dir_id ][ 2 ] = dir_fp
-            if not dirs_by_fp.has_key( dir_fp ):
+            if not dir_fp in dirs_by_fp:
                 dirs_by_fp[ dir_fp ] = [ dir_id ]
             else:
                 dirs_by_fp[ dir_fp ].append( dir_id )
@@ -1282,7 +1283,7 @@ def check_dupe_trees(db_conn):
             if 0 <= dir_parent:
                 # If parent isn't already in the list, add an entry and copy
                 # over contents from dirs_by_parent
-                if not waiting_for_fp.has_key( dir_parent ):
+                if not dir_parent in waiting_for_fp:
                     waiting_for_fp[ dir_parent ] = dirs_by_parent[ dir_parent ]
                 # Remove this dir from the list of children waiting for
                 # fingerprints
@@ -1429,7 +1430,7 @@ def diff_trees(db_conn, lhs_target, rhs_target):
 
             # Check files first
             for entry in lhs_db_data['file_entries'].keys():
-                if rhs_db_data['file_entries'].has_key( entry ):
+                if entry in rhs_db_data['file_entries']:
                     # Check fingerprints
                     if( lhs_db_data['file_entries'][ entry ][ 3 ] != \
                             rhs_db_data['file_entries'][ entry ][ 3 ] ):
@@ -1451,7 +1452,7 @@ def diff_trees(db_conn, lhs_target, rhs_target):
 
             # Check directories
             for entry in lhs_db_data['dir_entries'].keys():
-                if rhs_db_data['dir_entries'].has_key( entry ):
+                if entry in rhs_db_data['dir_entries']:
                     # Push onto stack to check later
                     dir_queue = [( (os.path.join(lhs[0], entry), 
                                     lhs_db_data['dir_entries'][ entry ][ 0 ]), 
@@ -1641,7 +1642,7 @@ def list_db(db_conn, target):
     target_info = resolve_target(target, cursor)
 
     if (target_info == None) or (target_info['dir_id'] == None):
-        print target + " is not in database." + os.linesep
+        print(target + " is not in database." + os.linesep)
         return 0
         
     count = 0
@@ -1649,7 +1650,7 @@ def list_db(db_conn, target):
     # Try the file table
     if (target_info['file_id'] != None):
         if not cmd_args.minimal:
-            print "Files matching '" + target + "':" + os.linesep
+            print("Files matching '" + target + "':" + os.linesep)
 
         headers = ("Name", "ID", "Last Modified", "Fingerprint", "Size")
         cursor.execute("SELECT Name,File_ID,LastModified,Fingerprint,Size " + 
@@ -1666,48 +1667,48 @@ def list_db(db_conn, target):
         for row in cursor.fetchall():
             if cmd_args.minimal:
                 # Print name only
-                print row[0]
+                print(row[0])
             else:
                 # Print name
-                print row[0] + ':'
+                print(row[0] + ':')
 
                 # Print ID
-                print indent + 'ID: ' + str(row[1])
+                print(indent + 'ID: ' + str(row[1]))
 
                 # Print date last modified
                 if row[2] != None:
-                    print indent + 'Last Modified: ' + \
-                        str(datetime.datetime.fromtimestamp(float(row[2])))
+                    print(indent + 'Last Modified: ' + \
+                        str(datetime.datetime.fromtimestamp(float(row[2]))))
                 else:
-                    print indent + 'Last Modified: '
+                    print(indent + 'Last Modified: ')
 
                 # Print Fingerprint
-                print indent + 'Fingerprint: 0x' + row[3]
+                print(indent + 'Fingerprint: 0x' + row[3])
 
                 # Print Size
-                print indent + 'Size: ' + str(row[4]) + ' bytes'
+                print(indent + 'Size: ' + str(row[4]) + ' bytes')
             count += 1
     elif (target_info['dir_id'] != None):
         # Retrieve all children
         parent_id = target_info['dir_id']
         if (not cmd_args.minimal) or (1 < len(cmd_args.target)):
-            print target + ":"
+            print(target + ":")
         if cmd_args.expanded:
             indent = ' ' * 8
-            print (' ' * 4) + '[INFO]'
+            print( (' ' * 4) + '[INFO]')
             cursor.execute("SELECT Parent_ID,LastChecked FROM '" + 
                            table_names['dirs'] + "' WHERE Path_ID=?", 
                            (parent_id,))
             row = cursor.fetchone()
 
             # Dir ID
-            print indent + 'ID: ' + str(parent_id)
+            print(indent + 'ID: ' + str(parent_id))
             
             # Parent ID
-            print indent + 'Parent ID: ' + str(row[0])
+            print(indent + 'Parent ID: ' + str(row[0]))
             
             # Date Last Checked:
-            print indent + 'Last Checked: ' + str(row[1])
+            print(indent + 'Last Checked: ' + str(row[1]))
         elif cmd_args.minimal:
             indent = ''
         else:
@@ -1715,36 +1716,37 @@ def list_db(db_conn, target):
 
         # subdirs
         if cmd_args.expanded:
-            print (' ' * 4) + '[Subdirectories]'
+            print( (' ' * 4) + '[Subdirectories]')
         cursor.execute("SELECT Name,Path_ID FROM '" + 
                        table_names['dirs'] + "' WHERE Parent_ID=?", 
                        (parent_id,) )
         for row in cursor.fetchall():
             if cmd_args.expanded:
-                print indent + os.path.join(row[0],'') + ' (' + str(row[1]) +')'
+                print(indent + os.path.join(row[0],'') + ' (' + str(row[1]) + 
+                      ')')
             else:
-                print indent + os.path.join(row[0],'')
+                print(indent + os.path.join(row[0],''))
             count += 1
         # files
         if cmd_args.expanded:
-            print (' ' * 4) + '[Files]'
+            print( (' ' * 4) + '[Files]')
         cursor.execute("SELECT Name,File_ID FROM '" + 
                        table_names['files'] + "' WHERE Parent_ID=?", 
                        (parent_id,) )
         for row in cursor.fetchall():
             if cmd_args.expanded:
-                print indent + row[0] + ' (' + str(row[1]) + ')'
+                print(indent + row[0] + ' (' + str(row[1]) + ')')
             else:
-                print indent + row[0]
+                print(indent + row[0])
             count += 1
 
         # If in minimal mode and there are multiple targets, print a blank line.
         if cmd_args.minimal and (1 < len(cmd_args.target)):
-            print
+            print()
    
 
     if not cmd_args.minimal:
-        print os.linesep + str(count) + " entries listed." + os.linesep
+        print(os.linesep + str(count) + " entries listed." + os.linesep)
     return count
 
 def write_db_fp(sha1, filename):
