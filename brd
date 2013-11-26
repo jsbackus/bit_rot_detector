@@ -569,6 +569,22 @@ def add_dir(path, parent_id, cursor):
     Returns the new entry's Path_ID.
     """
 
+    # force item name to unicode. First try to convert from
+    # default encoding. If that doesn't work, try forcing to
+    # cp437, which is the default Windows encoding.
+    try:
+        path = entry.encode('utf8')
+    except UnicodeDecodeError as e1:
+        try:
+            path = entry.decode('cp437').encode('utf8')
+        except UnicodeDecodeError as e2:
+            logging.warning("Attempts to encode file/dir name '" +
+                            entry + "' in UTF-8 generated errors: ")
+            logging.warning("\tFrom default encoding: " + 
+                            e1.message)
+            logging.warning("\tFrom cp437 : " + e2.message)
+            return None
+    
     cursor.execute("INSERT INTO '" + table_names['dirs'] + 
                    "'(Name, Parent_ID) VALUES(?, ?)", 
                    (path, str(parent_id)))
