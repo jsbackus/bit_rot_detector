@@ -752,6 +752,9 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
             for entry in os.listdir(node[0]):
                 # Generate full path to entry
                 entry_full_name = os.path.join(node[0], entry)
+                
+                # force item name to unicode
+                entry = entry.encode('utf8')
 
                 # Grab entry filesystem stats
                 try:
