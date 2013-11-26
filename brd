@@ -573,10 +573,10 @@ def add_dir(path, parent_id, cursor):
     # default encoding. If that doesn't work, try forcing to
     # cp437, which is the default Windows encoding.
     try:
-        path = entry.encode('utf8')
+        path = path.encode('utf8')
     except UnicodeDecodeError as e1:
         try:
-            path = entry.decode('cp437').encode('utf8')
+            path = path.decode('cp437').encode('utf8')
         except UnicodeDecodeError as e2:
             logging.warning("Attempts to encode path '" +
                             path + "' in UTF-8 generated errors: ")
