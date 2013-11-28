@@ -1569,7 +1569,7 @@ def resolve_target(target, cursor, add_root=False):
         ret_val['last_checked'] = tmp_row[1]
         return ret_val
 
-    for idx in xrange(idx, len(path_nodes)-1):
+    for idx in range(idx, len(path_nodes)-1):
         logging.debug("Checking for directory '%s' in parent ID %s", 
                       path_nodes[idx], parent_id)
         cursor.execute("SELECT Path_ID,LastChecked FROM '" + 
