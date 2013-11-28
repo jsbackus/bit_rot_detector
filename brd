@@ -219,6 +219,9 @@ def parse_args():
                               'targets when interacting with the database.')
     delroot_mode.add_argument('target', nargs='+', default='',
                            help='Root to remove.')
+    delroot_mode.add_argument('--dry-run', action='store_true',
+                              help='Simulates deleting specified target(s) ' +
+                              'without actually deleting anything.' )
 
     # Create namespace from command-line
     return parser.parse_args()

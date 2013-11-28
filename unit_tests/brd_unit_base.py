@@ -148,7 +148,7 @@ class BrdUnitBase(unittest.TestCase):
         while 0 < len(item_queue):
             item = item_queue.pop()
             
-            if item.has_key('Path_ID'):
+            if 'Path_ID' in item:
                 # directory. Add children to queue, remove children entry
                 # and add item to dir table.
                 for child in item['children'].keys():
@@ -164,6 +164,27 @@ class BrdUnitBase(unittest.TestCase):
         self.populate_db_table( self.table_names['dirs'], dir_table_info )
         # Populate files table
         self.populate_db_table( self.table_names['files'], file_table_info )
+
+    def build_tree_data_from_db(self, cursor):
+        """Builds a tree datastructure from the file and directory tables
+        in a database via the specified cursor.
+        """
+        # TO DO
+        pass
+
+    def diff_tree_datas(self, left_tree, right_tree):
+        """Compares the two tree data structures a-la diff. Returns three tree
+        datastructures:
+        * 'left' = All entries only in left_tree.
+        * 'right' = All entries only in right_tree.
+        * 'common' = All entries that are common.
+
+        Note: directories can appear in both "only" trees if one or more of its
+        children appear only in left_tree and one or more of its children
+        appear only in the right_tree.
+        """
+        # TO DO
+        pass
 
     def find_table(self, table_name):
         """Checks to see if the database contains a table with the specified 
@@ -202,7 +223,7 @@ class BrdUnitBase(unittest.TestCase):
         else:
             path = os.path.join( parent, tree_data['Name'] )
             # tree_data is a subtree or file. See which, then handle accordingly
-            if tree_data.has_key('Path_ID'):
+            if 'Path_ID' in tree_data:
                 # Directory. Create it and recursively process children
                 os.mkdir( path )
 
