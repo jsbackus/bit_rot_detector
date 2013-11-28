@@ -43,6 +43,10 @@ General and subcommand help can be viewed via the -h option:
     brd -h
     brd scan -h
 
+-= Requirements =-
+==========================
+* python3 - tested with Python 3.3.0
+
 -= Homepage =-
 ==========================
 http://github.com/jsbackus/bit_rot_detector
