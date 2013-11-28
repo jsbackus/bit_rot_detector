@@ -1756,7 +1756,7 @@ def write_db_fp(sha1, filename):
     try:
         fh = io.open(filename, 'wt')
         payload = sha1 + os.linesep
-        fh.write(unicode(payload))
+        fh.write(payload)
         fh.close()
     except IOError as e:
         logging.error("IOError({0}): {1}".format(e.errno, e.strerror) +
@@ -1825,13 +1825,17 @@ def check_db():
         else:
             logging.info("Database fingerprint matches previous fingerprint.")
 
-    except IOError:
-        if cmd_args.check_only:
-            logging.info("Unable to open fingerprint file '" + fp_file + "'!")
+    except OSError as e:
+        if e.errno == os.errno.ENOENT:
+            if cmd_args.check_only:
+                logging.info("Unable to open fingerprint file '" + fp_file + 
+                             "'!")
+            else:
+                logging.info("Unable to open fingerprint file '" + fp_file + 
+                             "'. Generating a new one.")
+                write_db_fp(fp, fp_file)
         else:
-            logging.info("Unable to open fingerprint file '" + fp_file + 
-                         "'. Generating a new one.")
-            write_db_fp(fp, fp_file)
+            logging.error( "I/O Error while checking database: " + e.strerr )
 
 ########
 # Main #
