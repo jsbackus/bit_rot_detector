@@ -296,7 +296,6 @@ class TestRm(BrdUnitBase):
         self.assertEqual( diff_results['right'], None)
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
-## TO DO ##
     def test_dry_run(self):
         """Tests rm subcommand with --dry-run option.
         """
@@ -313,13 +312,9 @@ class TestRm(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'rm', 
-                                           '--dry-run', 
-                                           'rootA/TreeA'], 
+        scr_out = subprocess.check_output([self.script_name, 'rm',
+                                           '--dry-run', 'rootA/TreeA'], 
                                           universal_newlines=True)
-        # debug
-        print(scr_out)
-        # end debug
 
         # Reopen database
         self.open_db( self.default_db, False )
@@ -348,8 +343,7 @@ class TestRm(BrdUnitBase):
 
         mod_time = int(time.time())
         check_time = datetime.datetime.fromtimestamp(mod_time)
-    #     exp_out = os.linesep.join( ( 'rootA/BunchOfDs.txt is not in database.',
-    #                                  '', '' ) )
+        exp_out = "Target 'rootB/TreeA' not in database."
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
@@ -361,12 +355,9 @@ class TestRm(BrdUnitBase):
 
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
-                                           'rootB/TreeA'], 
+                                           'rootB/TreeA'],
+                                          stderr=subprocess.STDOUT,
                                           universal_newlines=True)
-        # Debug
-        print(scr_out)
-        # end debug
-
         # Reopen database
         self.open_db( self.default_db, False )
         cursor = self.conn.cursor()
@@ -387,7 +378,7 @@ class TestRm(BrdUnitBase):
         self.assertEqual( diff_results['left'], None)
         self.assertEqual( diff_results['right'], None)
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
-    #     self.assertEqual( scr_out, exp_out )
+        self.assertNotEqual( scr_out.find( exp_out ), -1 )
         
     # def test_file_target_wildcard(self):
     #     """Tests list subcommand with multiple file targets, using wildcards.
