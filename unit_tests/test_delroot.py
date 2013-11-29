@@ -23,9 +23,9 @@ class TestDelRoot(BrdUnitBase):
     def tearDown(self):
         # Call superclass's cleanup routine
         super(TestDelRoot,self).tearDown()
-## TO DO ##
+
     def test_dir_target(self):
-        """Tests list subcommand with one directory target.
+        """Tests delroot subcommand with one directory target.
         """
 
         mod_time = int(time.time())
@@ -67,33 +67,51 @@ class TestDelRoot(BrdUnitBase):
         self.assertEqual( diff_results['right'], None)
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
-    # def test_file_target(self):
-    #     """Tests list subcommand with one file target.
-    #     """
+    def test_file_target(self):
+        """Tests delroot subcommand with one file target.
+        """
 
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-    #     exp_out = os.linesep.join( ( "Files matching 'rootA/BunchOfCs.txt':",
-    #                                  '', 'BunchOfCs.txt:', '    ID: 1',
-    #                                  '    Last Modified: ' + str(
-    #                 datetime.datetime.fromtimestamp(mod_time) ),
-    #                                  '    Fingerprint: 0xff3785f53b503b7adb7e' +
-    #                                  '7a3b9eeef255eac0e276',
-    #                                  '    Size: 257 bytes', '',
-    #                                  '1 entries listed.', '', '' ) )
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
 
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
 
-    #     # Populate the database with schema 1.
-    #     self.populate_db_from_tree( self.get_schema_1( mod_time, check_time ) )
-    #     self.conn.close()
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
 
-    #     # Attempt to list contents
-    #     scr_out = subprocess.check_output([self.script_name, 'list', 
-    #                                        'rootA/BunchOfCs.txt'])
-    #     # Verify output
-    #     self.assertEqual( scr_out, exp_out )
+        # Attempt to remove target file.
+        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+                                           'rootA/LeafB/BunchOfAs.txt'])
+
+        # Remove target subtree from expected contents
+        del exp_data['roots']['rootA']['children']['LeafB']['children']\
+            ['BunchOfAs.txt']
+
+        # Reopen database
+        self.open_db( self.default_db, False )
+        cursor = self.conn.cursor()
+
+        # Build a tree data structure from the current database contents.
+        cur_data = self.build_tree_data_from_db( cursor )
+
+        # Strip out contents field from all file entries and Name from the
+        # top-level before comparing
+        exp_data = self.strip_fields( exp_data, 'contents' )
+        cur_data = self.strip_fields( cur_data, 'contents' )
+        del(exp_data['Name'])
+        del(cur_data['Name'])
+
+        diff_results = self.diff_trees( exp_data, cur_data)
+        
+        # Verify results
+        self.assertEqual( diff_results['left'], None)
+        self.assertEqual( diff_results['right'], None)
+        self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+        
+## TO DO ##
 
     # def test_multiple_targets(self):
     #     """Tests list subcommand with multiple targets.
