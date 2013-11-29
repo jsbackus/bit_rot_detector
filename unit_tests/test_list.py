@@ -43,7 +43,7 @@ class TestList(BrdUnitBase):
 
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           'rootA'])
+                                           'rootA'], universal_newlines=True)
 
         # Verify output
         self.assertEqual( scr_out, exp_out )
@@ -72,7 +72,8 @@ class TestList(BrdUnitBase):
 
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           'rootA/BunchOfCs.txt'])
+                                           'rootA/BunchOfCs.txt'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
@@ -104,7 +105,8 @@ class TestList(BrdUnitBase):
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
                                            'rootA/BunchOfCs.txt', 
-                                           'rootA/LeafB'])
+                                           'rootA/LeafB'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
@@ -126,7 +128,8 @@ class TestList(BrdUnitBase):
 
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           'rootA/BunchOfDs.txt'])
+                                           'rootA/BunchOfDs.txt'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
@@ -160,7 +163,8 @@ class TestList(BrdUnitBase):
 
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           'rootA/LeafB/*.txt'])
+                                           'rootA/LeafB/*.txt'], 
+                                          universal_newlines=True)
 
         # Verify output
         self.assertEqual( scr_out, exp_out )
@@ -190,7 +194,8 @@ class TestList(BrdUnitBase):
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
                                            '--use-root', 'rootA', 
-                                           'my_temp/BunchOfCs.txt'])
+                                           'my_temp/BunchOfCs.txt'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
@@ -220,7 +225,8 @@ class TestList(BrdUnitBase):
         # Attempt to list contents
         scr_out = subprocess.check_output([self.script_name, 'list', 
                                            '--root-prefix', 'rootA', 
-                                           'BunchOfCs.txt'])
+                                           'BunchOfCs.txt'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
@@ -241,13 +247,15 @@ class TestList(BrdUnitBase):
 
         # Attempt to list contents with --minimal
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           '--minimal', 'rootA'])
+                                           '--minimal', 'rootA'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
         # Attempt to list contents with -m
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           '-m', 'rootA'])
+                                           '-m', 'rootA'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
@@ -276,13 +284,15 @@ class TestList(BrdUnitBase):
 
         # Attempt to list contents with --expanded
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           '--expanded', 'rootA'])
+                                           '--expanded', 'rootA'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
         # Attempt to list contents with -e
         scr_out = subprocess.check_output([self.script_name, 'list', 
-                                           '-e', 'rootA'])
+                                           '-e', 'rootA'], 
+                                          universal_newlines=True)
         # Verify output
         self.assertEqual( scr_out, exp_out )
 

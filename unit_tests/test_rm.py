@@ -41,7 +41,8 @@ class TestRm(BrdUnitBase):
 
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
-                                           'rootA/TreeA'])
+                                           'rootA/TreeA'], 
+                                          universal_newlines=True)
 
         # Remove target subtree from expected contents
         del(exp_data['roots']['rootA']['children']['TreeA'])
@@ -84,7 +85,8 @@ class TestRm(BrdUnitBase):
 
         # Attempt to remove target file.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
-                                           'rootA/LeafB/BunchOfAs.txt'])
+                                           'rootA/LeafB/BunchOfAs.txt'], 
+                                          universal_newlines=True)
 
         # Remove target file from expected contents
         del(exp_data['roots']['rootA']['children']['LeafB']['children']\
@@ -128,7 +130,8 @@ class TestRm(BrdUnitBase):
 
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
-                                           'rootA'])
+                                           'rootA'], 
+                                          universal_newlines=True)
 
         # Remove target subtree from expected contents
         del(exp_data['roots']['rootA'])
@@ -172,7 +175,8 @@ class TestRm(BrdUnitBase):
         # Attempt to remove targets.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            'rootA/TreeA', 
-                                           'rootA/LeafB/BunchOfAs.txt'])
+                                           'rootA/LeafB/BunchOfAs.txt'], 
+                                          universal_newlines=True)
 
         # Remove targets from expected contents
         del(exp_data['roots']['rootA']['children']['TreeA'])
@@ -219,7 +223,8 @@ class TestRm(BrdUnitBase):
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            '--use-root', 'rootA',
-                                           'my_temp/TreeA'])
+                                           'my_temp/TreeA'], 
+                                          universal_newlines=True)
 
         # Remove target subtree from expected contents
         del(exp_data['roots']['rootA']['children']['TreeA'])
@@ -264,7 +269,8 @@ class TestRm(BrdUnitBase):
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            '--root-prefix', 'rootA',
-                                           'TreeA'])
+                                           'TreeA'], 
+                                          universal_newlines=True)
 
         # Remove target subtree from expected contents
         del(exp_data['roots']['rootA']['children']['TreeA'])
@@ -309,7 +315,8 @@ class TestRm(BrdUnitBase):
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            '--dry-run', 
-                                           'rootA/TreeA'])
+                                           'rootA/TreeA'], 
+                                          universal_newlines=True)
         # debug
         print(scr_out)
         # end debug
@@ -354,7 +361,8 @@ class TestRm(BrdUnitBase):
 
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'rm', 
-                                           'rootB/TreeA'])
+                                           'rootB/TreeA'], 
+                                          universal_newlines=True)
         # Debug
         print(scr_out)
         # end debug
