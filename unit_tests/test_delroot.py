@@ -110,6 +110,50 @@ class TestDelRoot(BrdUnitBase):
         self.assertEqual( diff_results['left'], None)
         self.assertEqual( diff_results['right'], None)
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+
+    def test_root_target(self):
+        """Tests delroot subcommand with one root target.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_2( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Attempt to remove target subtree.
+        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+                                           'rootA'])
+
+        # Remove target subtree from expected contents
+        del exp_data['roots']['rootA']
+
+        # Reopen database
+        self.open_db( self.default_db, False )
+        cursor = self.conn.cursor()
+
+        # Build a tree data structure from the current database contents.
+        cur_data = self.build_tree_data_from_db( cursor )
+
+        # Strip out contents field from all file entries and Name from the
+        # top-level before comparing
+        exp_data = self.strip_fields( exp_data, 'contents' )
+        cur_data = self.strip_fields( cur_data, 'contents' )
+        del(exp_data['Name'])
+        del(cur_data['Name'])
+
+        diff_results = self.diff_trees( exp_data, cur_data)
+        
+        # Verify results
+        self.assertEqual( diff_results['left'], None)
+        self.assertEqual( diff_results['right'], None)
+        self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+        
         
 ## TO DO ##
 
