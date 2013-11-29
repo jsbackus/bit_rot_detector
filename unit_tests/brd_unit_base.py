@@ -327,14 +327,25 @@ class BrdUnitBase(unittest.TestCase):
         if isinstance(left_tree, dict):
             for header in header_list:
                 ret_val[ header ] = dict()
-            
+
+            tmp_entry_list = dict()
             for entry in left_tree:
-                if entry in right_tree:
-                    tmpRight = right_tree[ entry ]
+                tmp_entry_list[ entry ] = 1
+            for entry in right_tree:
+                tmp_entry_list[ entry ] = 1
+
+            for entry in tmp_entry_list:
+                if entry in left_tree:
+                    tmp_left = left_tree[ entry ]
                 else:
-                    tmpRight = None
-                result = self.diff_trees( left_tree[ entry ], 
-                                          tmpRight )
+                    tmp_left = None
+
+                if entry in right_tree:
+                    tmp_right = right_tree[ entry ]
+                else:
+                    tmp_right = None
+
+                result = self.diff_trees( tmp_left, tmp_right )
 
                 for header in header_list:
                     if result[ header ] != None:

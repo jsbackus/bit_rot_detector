@@ -44,7 +44,7 @@ class TestDelRoot(BrdUnitBase):
                                            'rootA/TreeA'])
 
         # Remove target subtree from expected contents
-        del exp_data['roots']['rootA']['children']['TreeA']
+        del(exp_data['roots']['rootA']['children']['TreeA'])
 
         # Reopen database
         self.open_db( self.default_db, False )
@@ -87,8 +87,8 @@ class TestDelRoot(BrdUnitBase):
                                            'rootA/LeafB/BunchOfAs.txt'])
 
         # Remove target file from expected contents
-        del exp_data['roots']['rootA']['children']['LeafB']['children']\
-            ['BunchOfAs.txt']
+        del(exp_data['roots']['rootA']['children']['LeafB']['children']\
+            ['BunchOfAs.txt'])
 
         # Reopen database
         self.open_db( self.default_db, False )
@@ -131,7 +131,7 @@ class TestDelRoot(BrdUnitBase):
                                            'rootA'])
 
         # Remove target subtree from expected contents
-        del exp_data['roots']['rootA']
+        del(exp_data['roots']['rootA'])
 
         # Reopen database
         self.open_db( self.default_db, False )
@@ -139,7 +139,7 @@ class TestDelRoot(BrdUnitBase):
 
         # Build a tree data structure from the current database contents.
         cur_data = self.build_tree_data_from_db( cursor )
-
+ 
         # Strip out contents field from all file entries and Name from the
         # top-level before comparing
         exp_data = self.strip_fields( exp_data, 'contents' )
@@ -148,7 +148,7 @@ class TestDelRoot(BrdUnitBase):
         del(cur_data['Name'])
 
         diff_results = self.diff_trees( exp_data, cur_data)
-        
+
         # Verify results
         self.assertEqual( diff_results['left'], None)
         self.assertEqual( diff_results['right'], None)
@@ -175,9 +175,9 @@ class TestDelRoot(BrdUnitBase):
                                            'rootA/LeafB/BunchOfAs.txt'])
 
         # Remove targets from expected contents
-        del exp_data['roots']['rootA']['children']['TreeA']
-        del exp_data['roots']['rootA']['children']['LeafB']['children']\
-            ['BunchOfAs.txt']
+        del(exp_data['roots']['rootA']['children']['TreeA'])
+        del(exp_data['roots']['rootA']['children']['LeafB']['children']\
+            ['BunchOfAs.txt'])
 
         # Reopen database
         self.open_db( self.default_db, False )
@@ -200,30 +200,52 @@ class TestDelRoot(BrdUnitBase):
         self.assertEqual( diff_results['right'], None)
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
-        
-## TO DO ##
-
     # def test_invalid_target(self):
-    #     """Tests list subcommand with an invalid target.
+    #     """Tests delroot subcommand with an invalid target.
     #     """
 
     #     mod_time = int(time.time())
     #     check_time = datetime.datetime.fromtimestamp(mod_time)
-    #     exp_out = os.linesep.join( ( 'rootA/BunchOfDs.txt is not in database.',
-    #                                  '', '' ) )
+    # #     exp_out = os.linesep.join( ( 'rootA/BunchOfDs.txt is not in database.',
+    # #                                  '', '' ) )
 
     #     # Call open_db, which should create db and its tables
     #     self.open_db( self.default_db, False )
 
     #     # Populate the database with schema 1.
-    #     self.populate_db_from_tree( self.get_schema_1( mod_time, check_time ) )
+    #     exp_data = self.get_schema_1( str(mod_time), check_time )
+    #     self.populate_db_from_tree( exp_data )
     #     self.conn.close()
 
-    #     # Attempt to list contents
-    #     scr_out = subprocess.check_output([self.script_name, 'list', 
-    #                                        'rootA/BunchOfDs.txt'])
-    #     # Verify output
-    #     self.assertEqual( scr_out, exp_out )
+    #     # Attempt to remove target subtree.
+    #     scr_out = subprocess.check_output([self.script_name, 'delroot', 
+    #                                        'rootB/TreeA'])
+        
+    #     print(scr_out)
+
+    #     # Reopen database
+    #     self.open_db( self.default_db, False )
+    #     cursor = self.conn.cursor()
+
+    #     # Build a tree data structure from the current database contents.
+    #     cur_data = self.build_tree_data_from_db( cursor )
+
+    #     # Strip out contents field from all file entries and Name from the
+    #     # top-level before comparing
+    #     exp_data = self.strip_fields( exp_data, 'contents' )
+    #     cur_data = self.strip_fields( cur_data, 'contents' )
+    #     del(exp_data['Name'])
+    #     del(cur_data['Name'])
+
+    #     diff_results = self.diff_trees( exp_data, cur_data)
+        
+    #     # Verify results
+    #     self.assertEqual( diff_results['left'], None)
+    #     self.assertEqual( diff_results['right'], None)
+    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+    # #     self.assertEqual( scr_out, exp_out )
+        
+## TO DO ##
 
     # def test_file_target_wildcard(self):
     #     """Tests list subcommand with multiple file targets, using wildcards.
