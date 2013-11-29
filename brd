@@ -1489,13 +1489,17 @@ def del_targets(db_conn):
 ### BUG! Does not delete the target...
 
         # Check for root in database
-        dir_id = resolve_target(target, cursor, False)['dir_id']
-        dir_db_data = get_dir_items_from_db(cursor, dir_id, True)
-    
-        # Delete tree
-        tmp_stats = prune_dirs(target, dir_db_data['dir_entries'], cursor)
-        file_stats = add_dicts(file_stats, tmp_stats[0])
-        dir_stats = add_dicts(dir_stats, tmp_stats[1])
+        target_info = resolve_target(target, cursor, False)
+        if target_info != None:
+            dir_id = target_info['dir_id']
+            dir_db_data = get_dir_items_from_db(cursor, dir_id, True)
+
+            # Delete tree
+            tmp_stats = prune_dirs(target, dir_db_data['dir_entries'], cursor)
+            file_stats = add_dicts(file_stats, tmp_stats[0])
+            dir_stats = add_dicts(dir_stats, tmp_stats[1])
+        else:
+            logging.warning("Target '" + target + "' not in database.")
 
     # Commit
     db_conn.commit()
