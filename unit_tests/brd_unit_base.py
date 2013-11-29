@@ -138,12 +138,15 @@ class BrdUnitBase(unittest.TestCase):
         dir_table_info = []
         file_table_info = []
 
+        # Make a deep copy of tree_data so that we don't damage it.
+        lcl_data = self.strip_fields(tree_data, '')
+
         # Maintain a queue of entries so that we can keep track of children.
         # Then go through each child, adding its info and any of its children
         # to the queue
         item_queue = [ ]
-        for entry in tree_data['roots'].keys():
-            item_queue.append( tree_data['roots'][ entry ] )
+        for entry in lcl_data['roots'].keys():
+            item_queue.append( lcl_data['roots'][ entry ] )
 
         while 0 < len(item_queue):
             item = item_queue.pop()
@@ -165,12 +168,79 @@ class BrdUnitBase(unittest.TestCase):
         # Populate files table
         self.populate_db_table( self.table_names['files'], file_table_info )
 
-    def build_tree_data_from_db(self, cursor):
+    def build_tree_data_from_db(self, cursor, path_id = -1):
         """Builds a tree datastructure from the file and directory tables
-        in a database via the specified cursor.
+        in a database via the specified cursor, starting with the specified
+        path.
+        
+        Note: This function is recursive.
         """
-        # TO DO
-        pass
+        
+        ret_val = dict()
+
+        # If path_id is valid, grab information from directory table
+        if 0 <= path_id:
+            cursor.execute("SELECT Name,Parent_ID,LastChecked FROM '" + 
+                           self.table_names['dirs'] + "' WHERE Path_ID=?", 
+                           (path_id,))
+            for row in cursor.fetchall():
+                ret_val['Name'] = row[0]
+                ret_val['Path_ID'] = path_id
+                ret_val['Parent_ID'] = row[1]
+                ret_val['LastChecked'] = row[2]
+                ret_val['children'] = dict()
+                child_dict = ret_val['children']
+            
+                # Look for children in the file table
+                cursor.execute("SELECT File_ID,Name,LastModified,Fingerprint," +
+                               "Size from '" + self.table_names['files'] + 
+                               "' WHERE Parent_ID=?", (path_id,))
+                for file_row in cursor.fetchall():
+                    name = file_row[1]
+                    child_dict[ name ] = dict()
+                    child_dict[ name ]['Name'] = name
+                    child_dict[ name ]['contents'] = ''
+                    child_dict[ name ]['File_ID'] = file_row[0]
+                    child_dict[ name ]['Parent_ID'] = path_id
+                    child_dict[ name ]['LastModified'] = file_row[2]
+                    child_dict[ name ]['Fingerprint'] = file_row[3]
+                    child_dict[ name ]['Size'] = file_row[4]
+        else:
+            ret_val['Name'] = ''
+            ret_val['roots'] = dict()
+            child_dict = ret_val['roots']
+
+        # Grab list of child directories from database and process
+        cursor.execute("SELECT Name,Path_ID FROM '" + self.table_names['dirs']
+                       + "' WHERE Parent_ID=?", (path_id,))
+        for row in cursor.fetchall():
+            name = row[0]
+            child_dict[ name ] = self.build_tree_data_from_db( cursor, row[1] )
+
+        return ret_val
+
+    def strip_fields(self, tree, field_names):
+        """Recursively deep-copies the specified dict-of-dicts, removing the
+        specified field name(s) at each level from the copy to be returned.
+        """
+
+        ret_val = dict()
+
+        # Allow user to specify a signel string
+        if isinstance(field_names, list):
+            lcl_fields = field_names
+        else:
+            lcl_fields = [ field_names ]
+
+        for entry in tree:
+            if not entry in lcl_fields:
+                if isinstance(tree[ entry ], dict):
+                    ret_val[ entry ] = self.strip_fields(tree[ entry ], 
+                                                         lcl_fields)
+                else:
+                    ret_val[ entry ] = tree[ entry ]
+
+        return ret_val
 
     def diff_trees(self, left_tree, right_tree):
         """Recursively performs a deep compare of two objects. Limited to
@@ -204,13 +274,13 @@ class BrdUnitBase(unittest.TestCase):
 
         if left_tree == right_tree:
             ret_val['common'] = left_tree
-            return
+            return ret_val
 
         # Check base types
         if type(left_tree) != type(right_tree) :
             ret_val['left'] = left_tree
             ret_val['right'] = right_tree
-            return
+            return ret_val
 
         if isinstance(left_tree, str) or isinstance(left_tree, int):
             if left_tree == right_tree:
@@ -218,7 +288,7 @@ class BrdUnitBase(unittest.TestCase):
             else:
                 ret_val['left'] = left_tree
                 ret_val['right'] = right_tree
-            return
+            return ret_val
 
         if isinstance(left_tree, list):
             for header in header_list:
@@ -259,7 +329,12 @@ class BrdUnitBase(unittest.TestCase):
                 ret_val[ header ] = dict()
             
             for entry in left_tree:
-                result = self.diff_trees( left_tree[key], right_tree[key] )
+                if entry in right_tree:
+                    tmpRight = right_tree[ entry ]
+                else:
+                    tmpRight = None
+                result = self.diff_trees( left_tree[ entry ], 
+                                          tmpRight )
 
                 for header in header_list:
                     if result[ header ] != None:

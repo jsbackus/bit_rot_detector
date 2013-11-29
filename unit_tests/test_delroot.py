@@ -35,7 +35,7 @@ class TestDelRoot(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( mod_time, check_time )
+        exp_data = self.get_schema_1( str(mod_time), check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -51,14 +51,20 @@ class TestDelRoot(BrdUnitBase):
         cursor = self.conn.cursor()
 
         # Build a tree data structure from the current database contents.
-        cur_data = self.build_tree_from_db( cursor )
+        cur_data = self.build_tree_data_from_db( cursor )
 
-        # Compare actual and expected results
-        diff_results = self.diff_tree_datas( exp_data, cur_data)
+        # Strip out contents field from all file entries and Name from the
+        # top-level before comparing
+        exp_data = self.strip_fields( exp_data, 'contents' )
+        cur_data = self.strip_fields( cur_data, 'contents' )
+        del(exp_data['Name'])
+        del(cur_data['Name'])
+
+        diff_results = self.diff_trees( exp_data, cur_data)
         
         # Verify results
-        self.assertEqual( len( diff_results['left']['roots'] ), 0)
-        self.assertEqual( len( diff_results['right']['roots'] ), 0)
+        self.assertEqual( diff_results['left'], None)
+        self.assertEqual( diff_results['right'], None)
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     # def test_file_target(self):
