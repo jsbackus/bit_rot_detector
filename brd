@@ -604,8 +604,16 @@ def prune_files(path, file_data, cursor):
                 logging.info("File '%s' pruned from directory '%s'.", item, 
                              path)
             else:
-                logging.warning("File '%s' no longer exists in directory '%s'!",
-                                item, path)
+                if cmd_args.subcommand == 'scan':
+                    logging.warning("File '%s' no longer exists in directory " +
+                                    "'%s'!", item, path)
+                elif cmd_args.subcommand == 'rm':
+                    logging.info("File '%s' would be pruned from directory " +
+                                 "'%s'.", item, path)
+                else:
+                    logging.warning("File '%s' no longer exists in directory " +
+                                    "'%s'!", item, path)
+
     return { 'missing' : len(file_data) }
 
 def prune_dirs(path, dir_data, cursor):
@@ -635,6 +643,7 @@ def prune_dirs(path, dir_data, cursor):
         if 0 < len(dir_queue):
             # Pop the next directory off of the stack
             node = dir_queue.pop()
+            logging.debug('Attempting to prune item: %s', node)
 
             # Update path to refer to this item
             path = os.path.join(node[0], node[1])
@@ -650,9 +659,15 @@ def prune_dirs(path, dir_data, cursor):
                 logging.info("Subdirectory '%s' pruned from directory '%s'.", 
                              node[1], node[0])
             else:
-                logging.warning("Subdirectory '%s' no longer exists in " +
-                                "directory '%s'!", node[1], node[0])
-
+                if cmd_args.subcommand == 'scan':
+                    logging.warning("Subdirectory '%s' no longer exists in " +
+                                    "directory '%s'!", node[1], node[0])
+                elif cmd_args.subcommand == 'rm':
+                    logging.info("Subdirectory '%s' would be pruned from " +
+                                 "directory '%s'.", node[1], node[0])
+                else:
+                    logging.warning("Subdirectory '%s' no longer exists in " +
+                                    "directory '%s'!", node[1], node[0])
             ret_val[1]['missing'] += 1
         else:
             done = True
@@ -1486,18 +1501,38 @@ def del_targets(db_conn):
     for target in cmd_args.target:
         # Remove any trailing OS separators and split into tokens
         target = target.rstrip(os.sep)
-### BUG! Does not delete the target...
+        logging.debug('Attempting to delete target "%s"', target)
 
         # Check for root in database
         target_info = resolve_target(target, cursor, False)
         if target_info != None:
-            dir_id = target_info['dir_id']
-            dir_db_data = get_dir_items_from_db(cursor, dir_id, True)
+            logging.debug('Target resolved to: %s', target_info)
 
-            # Delete tree
-            tmp_stats = prune_dirs(target, dir_db_data['dir_entries'], cursor)
-            file_stats = add_dicts(file_stats, tmp_stats[0])
-            dir_stats = add_dicts(dir_stats, tmp_stats[1])
+            if target_info['file_id'] != None:
+                # Target is a file
+                tmp_data = { target_info['file_name'] : 
+                             (target_info['file_id'], ) }
+                tmp_stats = prune_files(os.path.dirname(target), tmp_data, 
+                                        cursor)
+                file_stats = add_dicts(file_stats, tmp_stats)
+            else:
+                if target_info['dir_name'] == None:
+                    # Target is a root
+                    tmp_data = { target_info['root_name'] : 
+                                 (target_info['root_id'], 
+                                  target_info['last_checked']) }
+                    path = ''
+                else:
+                    # Target is a directory
+                    tmp_data = { target_info['dir_name'] : 
+                                 (target_info['dir_id'], 
+                                  target_info['last_checked']) }
+                    path = os.path.dirname(target)
+
+                # Delete tree
+                tmp_stats = prune_dirs(path, tmp_data, cursor)
+                file_stats = add_dicts(file_stats, tmp_stats[0])
+                dir_stats = add_dicts(dir_stats, tmp_stats[1])
         else:
             logging.warning("Target '" + target + "' not in database.")
 
@@ -1896,7 +1931,7 @@ if __name__ == '__main__':
                     list_db(db_conn, target)
 
         if cmd_args.subcommand == 'rm':
-            ok_to_prune = True
+            ok_to_prune = not cmd_args.dry_run
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
                 del_targets(db_conn)
