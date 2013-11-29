@@ -12,20 +12,20 @@ from brd_unit_base import BrdUnitBase
 # Note: we're expecting brd_unit_base to take care of path stuff
 import brd
 
-class TestDelRoot(BrdUnitBase):
-    """Unit tests for the delroot subcommand.
+class TestRm(BrdUnitBase):
+    """Unit tests for the rm subcommand.
     """
 
     def setUp(self):
         # Call superclass's setup routine.
-        super(TestDelRoot,self).setUp()
+        super(TestRm,self).setUp()
         
     def tearDown(self):
         # Call superclass's cleanup routine
-        super(TestDelRoot,self).tearDown()
+        super(TestRm,self).tearDown()
 
     def test_dir_target(self):
-        """Tests delroot subcommand with one directory target.
+        """Tests rm subcommand with one directory target.
         """
 
         mod_time = int(time.time())
@@ -40,7 +40,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            'rootA/TreeA'])
 
         # Remove target subtree from expected contents
@@ -68,7 +68,7 @@ class TestDelRoot(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_file_target(self):
-        """Tests delroot subcommand with one file target.
+        """Tests rm subcommand with one file target.
         """
 
         mod_time = int(time.time())
@@ -83,7 +83,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target file.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            'rootA/LeafB/BunchOfAs.txt'])
 
         # Remove target file from expected contents
@@ -112,7 +112,7 @@ class TestDelRoot(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
 
     def test_root_target(self):
-        """Tests delroot subcommand with one root target.
+        """Tests rm subcommand with one root target.
         """
 
         mod_time = int(time.time())
@@ -127,7 +127,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            'rootA'])
 
         # Remove target subtree from expected contents
@@ -155,7 +155,7 @@ class TestDelRoot(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_multiple_targets(self):
-        """Tests delroot subcommand with multiple targets.
+        """Tests rm subcommand with multiple targets.
         """
 
         mod_time = int(time.time())
@@ -170,7 +170,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove targets.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            'rootA/TreeA', 
                                            'rootA/LeafB/BunchOfAs.txt'])
 
@@ -201,7 +201,7 @@ class TestDelRoot(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_use_root(self):
-        """Tests delroot subcommand with one file target and the --use-root 
+        """Tests rm subcommand with one file target and the --use-root 
         option.
         """
 
@@ -217,7 +217,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            '--use-root', 'rootA',
                                            'my_temp/TreeA'])
 
@@ -246,7 +246,7 @@ class TestDelRoot(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_root_prefix(self):
-        """Tests delroot subcommand with one file target and the --root-prefix 
+        """Tests rm subcommand with one file target and the --root-prefix 
         option.
         """
 
@@ -262,7 +262,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            '--root-prefix', 'rootA',
                                            'TreeA'])
 
@@ -292,7 +292,7 @@ class TestDelRoot(BrdUnitBase):
         
 ## TO DO ##
     def test_dry_run(self):
-        """Tests delroot subcommand with --dry-run option.
+        """Tests rm subcommand with --dry-run option.
         """
 
         mod_time = int(time.time())
@@ -307,7 +307,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            '--dry-run', 
                                            'rootA/TreeA'])
         # debug
@@ -336,7 +336,7 @@ class TestDelRoot(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_invalid_target(self):
-        """Tests delroot subcommand with an invalid target.
+        """Tests rm subcommand with an invalid target.
         """
 
         mod_time = int(time.time())
@@ -353,7 +353,7 @@ class TestDelRoot(BrdUnitBase):
         self.conn.close()
 
         # Attempt to remove target subtree.
-        scr_out = subprocess.check_output([self.script_name, 'delroot', 
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
                                            'rootB/TreeA'])
         # Debug
         print(scr_out)

@@ -206,22 +206,21 @@ def parse_args():
     list_mode.add_argument('target', nargs='*', default='',
                            help='Entry to list. Format: <root>/<path>')
 
-    # delroot subparser
-    delroot_mode = subparsers.add_parser('delroot',
-                                      help='Removes roots and their contents ' +
-                                         'from the database.')
-    delroot_mode.add_argument('--use-root', default='',
-                              help='Strip path information from all targets ' +
-                              'and replace with the specified string when ' +
-                              'interacting with the database.')
-    delroot_mode.add_argument('--root-prefix', default='',
-                              help='Append the specified string to all ' +
-                              'targets when interacting with the database.')
-    delroot_mode.add_argument('target', nargs='+', default='',
-                           help='Root to remove.')
-    delroot_mode.add_argument('--dry-run', action='store_true',
-                              help='Simulates deleting specified target(s) ' +
-                              'without actually deleting anything.' )
+    # rm subparser
+    rm_mode = subparsers.add_parser('rm', help='Recursively removes items ' +
+                                    'from the database.')
+    rm_mode.add_argument('--use-root', default='',
+                         help='Strip path information from all targets ' +
+                         'and replace with the specified string when ' +
+                         'interacting with the database.')
+    rm_mode.add_argument('--root-prefix', default='',
+                         help='Append the specified string to all ' +
+                         'targets when interacting with the database.')
+    rm_mode.add_argument('target', nargs='+', default='',
+                         help='Root to remove.')
+    rm_mode.add_argument('--dry-run', action='store_true',
+                         help='Simulates deleting specified target(s) ' +
+                         'without actually deleting anything.' )
 
     # Create namespace from command-line
     return parser.parse_args()
@@ -1475,8 +1474,8 @@ def diff_trees(db_conn, lhs_target, rhs_target):
     except KeyboardInterrupt:
         logging.error("Interrupt detected.")
                 
-def del_roots(db_conn):
-    """Attempts to remove the specified root
+def del_targets(db_conn):
+    """Attempts to remove the specified target(s)
     """
 
     file_stats = { 'missing' : 0 }
@@ -1892,11 +1891,11 @@ if __name__ == '__main__':
                 for target in cmd_args.target:
                     list_db(db_conn, target)
 
-        if cmd_args.subcommand == 'delroot':
+        if cmd_args.subcommand == 'rm':
             ok_to_prune = True
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
-                del_roots(db_conn)
+                del_targets(db_conn)
 
         elif cmd_args.subcommand == 'checkdb':
             check_db()
