@@ -172,19 +172,107 @@ class BrdUnitBase(unittest.TestCase):
         # TO DO
         pass
 
-    def diff_tree_datas(self, left_tree, right_tree):
-        """Compares the two tree data structures a-la diff. Returns three tree
-        datastructures:
-        * 'left' = All entries only in left_tree.
-        * 'right' = All entries only in right_tree.
-        * 'common' = All entries that are common.
+    def diff_trees(self, left_tree, right_tree):
+        """Recursively performs a deep compare of two objects. Limited to
+        the following data types:
+        * dict
+        * list
+        * str
+        * int
+        * tuple
 
-        Note: directories can appear in both "only" trees if one or more of its
-        children appear only in left_tree and one or more of its children
-        appear only in the right_tree.
+        Returns:
+        * 'left' = All entries different in left_tree.
+        * 'right' = All entries different in right_tree.
+        * 'common' = All entries that are common.
         """
-        # TO DO
-        pass
+        
+        ret_val = { 'left': None, 'right': None, 'common': None }
+        header_list = ( 'left', 'right', 'common' )
+        
+        # Check simple use cases
+        if left_tree == None and right_tree == None:
+            return ret_val
+
+        if left_tree == None:
+            ret_val['right'] = right_tree
+            return ret_val
+
+        if right_tree == None:
+            ret_val['left'] = left_tree
+            return ret_val
+
+        if left_tree == right_tree:
+            ret_val['common'] = left_tree
+            return
+
+        # Check base types
+        if type(left_tree) != type(right_tree) :
+            ret_val['left'] = left_tree
+            ret_val['right'] = right_tree
+            return
+
+        if isinstance(left_tree, str) or isinstance(left_tree, int):
+            if left_tree == right_tree:
+                ret_val['common'] = left_tree
+            else:
+                ret_val['left'] = left_tree
+                ret_val['right'] = right_tree
+            return
+
+        if isinstance(left_tree, list):
+            for header in header_list:
+                ret_val[ header ] = []
+            
+            for idx in range(0, len(left_tree)):
+                result = self.diff_trees( left_tree[idx], right_tree[idx] )
+                for header in header_list:
+                    if result[ header ] != None:
+                        ret_val[ header ] += result[ header ]
+
+            for header in header_list:
+                if len(ret_val[ header ]) == 0:
+                    ret_val[ header ] = None
+
+            return ret_val
+
+        if isinstance(left_tree, tuple):
+            for header in header_list:
+                ret_val[ header ] = []
+            
+            for idx in range(0, len(left_tree)):
+                result = self.diff_trees( left_tree[idx], right_tree[idx] )
+                for header in header_list:
+                    if result[ header ] != None:
+                        ret_val[ header ] += result[ header ]
+
+            for header in header_list:
+                if len(ret_val[ header ]) == 0:
+                    ret_val[ header ] = None
+                else:
+                    ret_val[ header ] = tuple( ret_val[ header ] )
+            
+            return ret_val
+
+        if isinstance(left_tree, dict):
+            for header in header_list:
+                ret_val[ header ] = dict()
+            
+            for entry in left_tree:
+                result = self.diff_trees( left_tree[key], right_tree[key] )
+
+                for header in header_list:
+                    if result[ header ] != None:
+                        ret_val[ header ][ entry ] = result[ header ]
+                
+            for header in header_list:
+                if len(ret_val[ header ]) == 0:
+                    ret_val[ header ] = None
+
+            return ret_val
+
+        # Should never get to this point. Throw a TypeError if we do.
+        raise TypeError('Type "' + type(left_tree) + '" not supported!')
 
     def find_table(self, table_name):
         """Checks to see if the database contains a table with the specified 
