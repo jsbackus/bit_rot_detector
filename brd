@@ -168,10 +168,10 @@ def parse_args():
     diff_mode = subparsers.add_parser('diff', 
                                       help='Compares subtrees like diff -R.')
     diff_mode.add_argument('-o', '--output', nargs='?', default='',
-                           help='Optional file to diff output to.' +
-                           'Useful when -v or -d is used')
+                           help='Optional file to diff output to. ' +
+                           'Useful when -v or -d is used.')
     diff_mode.add_argument('target', nargs=2, 
-                           help='Names of roots/subtrees to check')
+                           help='Names of roots/subtrees to check.')
 
     # Check DB subparser
     checkdb_mode = subparsers.add_parser('checkdb', 
