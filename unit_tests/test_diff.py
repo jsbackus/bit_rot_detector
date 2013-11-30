@@ -40,7 +40,6 @@ class TestDiff(BrdUnitBase):
         exp_data = self.get_schema_2( str(mod_time), check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
-        shutil.copy( self.default_db, 'test.db' )
 
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'diff', 
