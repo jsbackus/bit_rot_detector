@@ -12,20 +12,20 @@ from brd_unit_base import BrdUnitBase
 # Note: we're expecting brd_unit_base to take care of path stuff
 import brd
 
-class TestRm(BrdUnitBase):
-    """Unit tests for the rm subcommand.
+class TestDiff(BrdUnitBase):
+    """Unit tests for the diff subcommand.
     """
 
     def setUp(self):
         # Call superclass's setup routine.
-        super(TestRm,self).setUp()
+        super(TestDiff,self).setUp()
         
     def tearDown(self):
         # Call superclass's cleanup routine
-        super(TestRm,self).tearDown()
+        super(TestDiff,self).tearDown()
 
     def test_dir_target(self):
-        """Tests rm subcommand with one directory target.
+        """Tests diff subcommand with one directory target.
         """
 
         mod_time = int(time.time())
@@ -69,7 +69,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_file_target(self):
-        """Tests rm subcommand with one file target.
+        """Tests diff subcommand with one file target.
         """
 
         mod_time = int(time.time())
@@ -114,7 +114,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
 
     def test_root_target(self):
-        """Tests rm subcommand with one root target.
+        """Tests diff subcommand with one root target.
         """
 
         mod_time = int(time.time())
@@ -158,7 +158,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_multiple_targets(self):
-        """Tests rm subcommand with multiple targets.
+        """Tests diff subcommand with multiple targets.
         """
 
         mod_time = int(time.time())
@@ -205,7 +205,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_use_root(self):
-        """Tests rm subcommand with one file target and the --use-root 
+        """Tests diff subcommand with one file target and the --use-root 
         option.
         """
 
@@ -251,7 +251,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_root_prefix(self):
-        """Tests rm subcommand with one file target and the --root-prefix 
+        """Tests diff subcommand with one file target and the --root-prefix 
         option.
         """
 
@@ -297,7 +297,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_dry_run(self):
-        """Tests rm subcommand with --dry-run option.
+        """Tests diff subcommand with --dry-run option.
         """
 
         mod_time = int(time.time())
@@ -338,7 +338,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         
     def test_invalid_target(self):
-        """Tests rm subcommand with an invalid target.
+        """Tests diff subcommand with an invalid target.
         """
 
         mod_time = int(time.time())
@@ -381,7 +381,7 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( scr_out.find( exp_out ), -1 )
         
     def test_file_target_wildcard(self):
-        """Tests rm subcommand with wildcards.
+        """Tests diff subcommand with wildcards.
         """
 
         mod_time = int(time.time())
