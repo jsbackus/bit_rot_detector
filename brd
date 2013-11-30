@@ -170,6 +170,13 @@ def parse_args():
     diff_mode.add_argument('-o', '--output', nargs='?', default='',
                            help='Optional file to diff output to. ' +
                            'Useful when -v or -d is used.')
+    diff_mode.add_argument('--use-root', default='',
+                           help='Strip path information from all targets ' +
+                           'and replace with the specified string when ' +
+                           'interacting with the database.')
+    diff_mode.add_argument('--root-prefix', default='',
+                           help='Append the specified string to all ' +
+                           'targets when interacting with the database.')
     diff_mode.add_argument('target', nargs=2, 
                            help='Names of roots/subtrees to check.')
 
@@ -1446,8 +1453,9 @@ def diff_trees(db_conn, lhs_target, rhs_target):
             rhs_db_data = get_dir_items_from_db(cursor, rhs[1], True)
 
             # Check files first
-            for entry in lhs_db_data['file_entries'].keys():
-                if entry in rhs_db_data['file_entries']:
+            for entry in list(lhs_db_data['file_entries'].keys()):
+                if entry in lhs_db_data['file_entries'] and \
+                        entry in rhs_db_data['file_entries']:
                     # Check fingerprints
                     if( lhs_db_data['file_entries'][ entry ][ 3 ] != \
                             rhs_db_data['file_entries'][ entry ][ 3 ] ):
@@ -1461,14 +1469,14 @@ def diff_trees(db_conn, lhs_target, rhs_target):
                                       lhs[0] + ": " + entry, fh)
                 del( lhs_db_data['file_entries'][ entry ] )
 
-            for entry in rhs_db_data['file_entries'].keys():
+            for entry in list(rhs_db_data['file_entries'].keys()):
                 diff_trees_notify("Only in " + 
                                   rhs[0] + ": " + entry, fh)
                 del( rhs_db_data['file_entries'][ entry ] )
                 
 
             # Check directories
-            for entry in lhs_db_data['dir_entries'].keys():
+            for entry in list(lhs_db_data['dir_entries'].keys()):
                 if entry in rhs_db_data['dir_entries']:
                     # Push onto stack to check later
                     dir_queue = [( (os.path.join(lhs[0], entry), 
@@ -1481,7 +1489,7 @@ def diff_trees(db_conn, lhs_target, rhs_target):
                                       lhs[0] + ": " + entry, fh)
                 del( lhs_db_data['dir_entries'][ entry ] )
 
-            for entry in rhs_db_data['dir_entries'].keys():
+            for entry in list(rhs_db_data['dir_entries'].keys()):
                 diff_trees_notify("Only in " + 
                                   rhs[0] + ": " + entry, fh)
                 del( rhs_db_data['dir_entries'][ entry ] )
@@ -1919,7 +1927,7 @@ if __name__ == '__main__':
                 with open_db(cmd_args.db) as db_conn:
                     check_dupe_trees(db_conn)
 
-        elif cmd_args.subcommand == 'diffroot':
+        elif cmd_args.subcommand == 'diff':
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
                 diff_trees(db_conn, cmd_args.target[0], cmd_args.target[1])
