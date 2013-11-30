@@ -380,41 +380,49 @@ class TestRm(BrdUnitBase):
         self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
         self.assertNotEqual( scr_out.find( exp_out ), -1 )
         
-    # def test_file_target_wildcard(self):
-    #     """Tests list subcommand with multiple file targets, using wildcards.
-    #     """
+    def test_file_target_wildcard(self):
+        """Tests rm subcommand with wildcards.
+        """
 
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-    #     exp_out = os.linesep.join( ( "Files matching 'rootA/LeafB/*.txt':",
-    #                                  '', 'BunchOfAs.txt:', '    ID: 4',
-    #                                  '    Last Modified: ' + str(
-    #                 datetime.datetime.fromtimestamp(mod_time) ),
-    #                                  '    Fingerprint: 0x1a0372738bb5b4b8360b' +
-    #                                  '47c4504a27e6f4811493',
-    #                                  '    Size: 257 bytes', 
-    #                                  'BunchOfBs.txt:', '    ID: 5',
-    #                                  '    Last Modified: ' + str(
-    #                 datetime.datetime.fromtimestamp(mod_time) ),
-    #                                  '    Fingerprint: 0xfa75bf047f45891daee8' +
-    #                                  'f1fa4cd2bf58876770a5',
-    #                                  '    Size: 257 bytes', '',
-    #                                  '2 entries listed.', '', '' ) )
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
 
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
 
-    #     # Populate the database with schema 1.
-    #     self.populate_db_from_tree( self.get_schema_1( mod_time, check_time ) )
-    #     self.conn.close()
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
 
-    #     # Attempt to list contents
-    #     scr_out = subprocess.check_output([self.script_name, 'list', 
-    #                                        'rootA/LeafB/*.txt'])
+        # Attempt to remove targets.
+        scr_out = subprocess.check_output([self.script_name, 'rm', 
+                                           'rootA/*.txt'], 
+                                          universal_newlines=True)
 
-    #     # Verify output
-    #     self.assertEqual( scr_out, exp_out )
+        # Remove targets from expected contents
+        del(exp_data['roots']['rootA']['children']['BunchOfCs.txt'])
 
+        # Reopen database
+        self.open_db( self.default_db, False )
+        cursor = self.conn.cursor()
+
+        # Build a tree data structure from the current database contents.
+        cur_data = self.build_tree_data_from_db( cursor )
+
+        # Strip out contents field from all file entries and Name from the
+        # top-level before comparing
+        exp_data = self.strip_fields( exp_data, 'contents' )
+        cur_data = self.strip_fields( cur_data, 'contents' )
+        del(exp_data['Name'])
+        del(cur_data['Name'])
+
+        diff_results = self.diff_trees( exp_data, cur_data)
+        
+        # Verify results
+        self.assertEqual( diff_results['left'], None)
+        self.assertEqual( diff_results['right'], None)
+        self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
 
 # Allow unit test to run on its own
 if __name__ == '__main__':
