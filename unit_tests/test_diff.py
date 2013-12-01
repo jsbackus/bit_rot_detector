@@ -251,49 +251,108 @@ class TestDiff(BrdUnitBase):
         for exp_line in exp_out:
             self.assertTrue( exp_line in scr_lines )
         
-    # def test_invalid_target(self):
-    #     """Tests diff subcommand with an invalid target.
-    #     """
+    def test_invalid_target_left(self):
+        """Tests diff subcommand with an invalid target on left and a valid
+        target on right.
+        """
 
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-    #     exp_out = "Target 'rootB/TreeA' not in database."
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ["'rootA/TreeB' not in database!"]
 
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
 
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
 
-    #     # Attempt to remove target subtree.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm', 
-    #                                        'rootB/TreeA'],
-    #                                       stderr=subprocess.STDOUT,
-    #                                       universal_newlines=True)
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
+        # Diff targets
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           'rootA/TreeB', 'rootA/LeafB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        tmp_scr_lines = scr_out.split('\n')
+        scr_lines = []
+        for idx in range(0, len(tmp_scr_lines)):
+            find_result = tmp_scr_lines[idx].find("] ")
+            if 0 < len(tmp_scr_lines[idx]) and 0 < find_result:
+                scr_lines.append( tmp_scr_lines[idx][find_result + 2:] )
 
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
+        # Verify results
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
 
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
+    def test_invalid_target_right(self):
+        """Tests diff subcommand with a valid target on left and an invalid
+        target on right.
+        """
 
-    #     diff_results = self.diff_trees( exp_data, cur_data)
-        
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
-    #     self.assertNotEqual( scr_out.find( exp_out ), -1 )
-        
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ["'rootA/LeafA' not in database!"]
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Diff targets
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           'rootA/TreeA', 'rootA/LeafA'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        tmp_scr_lines = scr_out.split('\n')
+        scr_lines = []
+        for idx in range(0, len(tmp_scr_lines)):
+            find_result = tmp_scr_lines[idx].find("] ")
+            if 0 < len(tmp_scr_lines[idx]) and 0 < find_result:
+                scr_lines.append( tmp_scr_lines[idx][find_result + 2:] )
+
+        # Verify results
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
+    def test_invalid_target_both(self):
+        """Tests diff subcommand with two invalid targets.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ["'rootA/TreeB' not in database!",
+                   "'rootA/LeafA' not in database!"]
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Diff targets
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           'rootA/TreeB', 'rootA/LeafA'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        tmp_scr_lines = scr_out.split('\n')
+        scr_lines = []
+        for idx in range(0, len(tmp_scr_lines)):
+            find_result = tmp_scr_lines[idx].find("] ")
+            if 0 < len(tmp_scr_lines[idx]) and 0 < find_result:
+                scr_lines.append( tmp_scr_lines[idx][find_result + 2:] )
+
+        # Verify results
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
     # def test_file_target_wildcard(self):
     #     """Tests diff subcommand with wildcards.
     #     """
