@@ -285,20 +285,6 @@ def setup_logger(verbose_mode, debug_mode, filename=''):
     # Add to root logger
     rootLogger.addHandler(con)
 
-# \/ \/ Consider removing this function \/ \/
-def tokenize_path(path):
-    """Generator to tokenize a path via os.path.split. 
-    Note: tokens will return in reverse order!
-    """
-    tmp_path = path
-    while True:
-        elms = os.split(tmp_path)
-        if len(elms[1]) <= 0:
-            break
-        tmp_path = elms[0]
-        yield elms[1]
-# /\ /\ Consider removing this function /\ /\
-
 def serialize_hash_of_lists( hash_of_lists ):
     """Generator to serialize a hash of lists. It goes through the keys of the
     hash in no particular order, returning the items of each list one at a time
@@ -473,36 +459,6 @@ def process_file(node, filename, mode, file_db_dict, cursor):
         # Return dict indicating addition
         ret_val['added'] = 1
         return ret_val
-
-### \/\/ Deprecated! \/\/
-def get_root_from_db(cursor, rootdir):
-    """Searches the database using the specified cursor object for the first
-    record in the roots table with the same name. If no record exists, one is 
-    added. Returns the tuple: (root dir, root id, last_checked)
-    """
-
-    ret_val = -1
-
-    # Search the database for this root by name. If it doesn't exist, add it.
-    cursor.execute("SELECT Path_ID, LastChecked FROM '" + table_names['dirs'] + 
-                   "' WHERE Name=? AND Parent_ID=?", (rootdir,-1))
-    row = cursor.fetchone()
-    if row == None:
-        # Doesn't exist - add
-        cursor.execute("INSERT INTO '" + table_names['dirs'] + 
-                       "'(Name,Parent_ID) VALUES(?,?)", 
-                       (rootdir,-1))
-        ret_val = (cursor.lastrowid, "")
-        logging.debug('Root \'' + rootdir + '\' not in database. Added ' +
-                      'with ID = ' + str(ret_val))
-    else:
-        ret_val = (row[0], row[1])
-        logging.debug('Root \'' + rootdir + '\' found in database with ID = ' +
-                      str(ret_val))
-
-    # Return Root_ID for this root
-    return ret_val
-### /\/\ Deprecated! /\/\
 
 def get_dir_items_from_db(cursor, parent_id, check_files):
     """Searches the database using the specified cursor object for all items
