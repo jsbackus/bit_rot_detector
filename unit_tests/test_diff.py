@@ -5,7 +5,6 @@ import subprocess
 import unittest
 import datetime
 import time
-import shutil
 
 from brd_unit_base import BrdUnitBase
 
@@ -41,7 +40,7 @@ class TestDiff(BrdUnitBase):
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
-        # Attempt to remove target subtree.
+        # Check targets
         scr_out = subprocess.check_output([self.script_name, 'diff', 
                                            'rootA', 'rootB'], 
                                           stderr=subprocess.STDOUT,
@@ -66,7 +65,7 @@ class TestDiff(BrdUnitBase):
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
-        # Attempt to remove target subtree.
+        # Diff targets
         scr_out = subprocess.check_output([self.script_name, 'diff', 
                                            'rootA/TreeA/DirA/LeafA/BunchOfAs.txt', 
                                            'rootA/LeafB/BunchOfAs.txt'], 
@@ -93,7 +92,7 @@ class TestDiff(BrdUnitBase):
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
-        # Attempt to remove target subtree.
+        # Diff targets
         scr_out = subprocess.check_output([self.script_name, 'diff', 
                                            'rootA/TreeA/DirA/LeafA/BunchOfAs.txt', 
                                            'rootA/LeafB'], 
@@ -103,274 +102,154 @@ class TestDiff(BrdUnitBase):
         # Verify results
         self.assertEqual( scr_out, exp_out )
         
-    # def test_dir_target(self):
-    #     """Tests diff subcommand with one directory target.
-    #     """
+    def test_dissimilar_trees(self):
+        """Tests diff subcommand with two dissimilar trees.
+        """
 
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ['Only in rootA/LeafB: BunchOfAs.txt',
+                   'Only in rootA/LeafB: BunchOfBs.txt',
+                   'Only in rootA/TreeA: DirA', '']
 
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
 
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
 
-    #     # Attempt to remove target subtree.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm', 
-    #                                        'rootA/TreeA'], 
-    #                                       universal_newlines=True)
+        # Diff targets
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           'rootA/TreeA', 'rootA/LeafB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        scr_lines = scr_out.split('\n')
 
-    #     # Remove target subtree from expected contents
-    #     del(exp_data['roots']['rootA']['children']['TreeA'])
-
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
-
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
-
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
-
-    #     diff_results = self.diff_trees( exp_data, cur_data)
+        # Verify results
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
         
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+    def test_output_option(self):
+        """Tests diff subcommand with --output option.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        out_file = 'test_output.txt'
+        exp_out = ['Only in rootA/LeafB: BunchOfAs.txt\n',
+                   'Only in rootA/LeafB: BunchOfBs.txt\n',
+                   'Only in rootA/TreeA: DirA\n']
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Try --output option
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           '--output', out_file,
+                                           'rootA/TreeA', 'rootA/LeafB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        with open(out_file, 'rt') as f:
+            scr_lines = f.readlines()
+
+        # Verify results
+        self.assertEqual( scr_out, '' )
+
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
+        # Remove output file and try again with -o option
+        os.unlink( out_file )
+
+        # Try -o option.
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           '-o', out_file,
+                                           'rootA/TreeA', 'rootA/LeafB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        with open(out_file, 'rt') as f:
+            scr_lines = f.readlines()
+
+        # Verify results
+        self.assertEqual( scr_out, '' )
+
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
+        # Remove output file
+        os.unlink( out_file )
         
-    # def test_file_target(self):
-    #     """Tests diff subcommand with one file target.
-    #     """
+    def test_root_prefix(self):
+        """Tests diff subcommand with --root-prefix option.
+        """
 
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ['Only in LeafB: BunchOfAs.txt',
+                   'Only in LeafB: BunchOfBs.txt',
+                   'Only in TreeA: DirA', '']
 
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
 
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
 
-    #     # Attempt to remove target file.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm', 
-    #                                        'rootA/LeafB/BunchOfAs.txt'], 
-    #                                       universal_newlines=True)
+        # Diff targets
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           '--root-prefix', 'rootA',
+                                           'TreeA', 'LeafB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        scr_lines = scr_out.split('\n')
 
-    #     # Remove target file from expected contents
-    #     del(exp_data['roots']['rootA']['children']['LeafB']['children']\
-    #         ['BunchOfAs.txt'])
-
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
-
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
-
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
-
-    #     diff_results = self.diff_trees( exp_data, cur_data)
+        # Verify results
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
         
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+    def test_use_root(self):
+        """Tests diff subcommand with --use-root option.
+        """
 
-    # def test_multiple_targets(self):
-    #     """Tests diff subcommand with multiple targets.
-    #     """
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ['Only in my_temp/LeafB: BunchOfAs.txt',
+                   'Only in my_temp/LeafB: BunchOfBs.txt',
+                   'Only in my_temp/TreeA: DirA', '']
 
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
 
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
 
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
+        # Diff targets
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           '--use-root', 'rootA', 
+                                           'my_temp/TreeA', 'my_temp/LeafB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        scr_lines = scr_out.split('\n')
 
-    #     # Attempt to remove targets.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm', 
-    #                                        'rootA/TreeA', 
-    #                                        'rootA/LeafB/BunchOfAs.txt'], 
-    #                                       universal_newlines=True)
-
-    #     # Remove targets from expected contents
-    #     del(exp_data['roots']['rootA']['children']['TreeA'])
-    #     del(exp_data['roots']['rootA']['children']['LeafB']['children']\
-    #         ['BunchOfAs.txt'])
-
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
-
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
-
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
-
-    #     diff_results = self.diff_trees( exp_data, cur_data)
-        
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
-        
-    # def test_use_root(self):
-    #     """Tests diff subcommand with one file target and the --use-root 
-    #     option.
-    #     """
-
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
-
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
-
-    #     # Attempt to remove target subtree.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm', 
-    #                                        '--use-root', 'rootA',
-    #                                        'my_temp/TreeA'], 
-    #                                       universal_newlines=True)
-
-    #     # Remove target subtree from expected contents
-    #     del(exp_data['roots']['rootA']['children']['TreeA'])
-
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
-
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
-
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
-
-    #     diff_results = self.diff_trees( exp_data, cur_data)
-        
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
-        
-    # def test_root_prefix(self):
-    #     """Tests diff subcommand with one file target and the --root-prefix 
-    #     option.
-    #     """
-
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
-
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
-
-    #     # Attempt to remove target subtree.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm', 
-    #                                        '--root-prefix', 'rootA',
-    #                                        'TreeA'], 
-    #                                       universal_newlines=True)
-
-    #     # Remove target subtree from expected contents
-    #     del(exp_data['roots']['rootA']['children']['TreeA'])
-
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
-
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
-
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
-
-    #     diff_results = self.diff_trees( exp_data, cur_data)
-        
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
-        
-    # def test_dry_run(self):
-    #     """Tests diff subcommand with --dry-run option.
-    #     """
-
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
-
-    #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
-    #     self.populate_db_from_tree( exp_data )
-    #     self.conn.close()
-
-    #     # Attempt to remove target subtree.
-    #     scr_out = subprocess.check_output([self.script_name, 'rm',
-    #                                        '--dry-run', 'rootA/TreeA'], 
-    #                                       universal_newlines=True)
-
-    #     # Reopen database
-    #     self.open_db( self.default_db, False )
-    #     cursor = self.conn.cursor()
-
-    #     # Build a tree data structure from the current database contents.
-    #     cur_data = self.build_tree_data_from_db( cursor )
-
-    #     # Strip out contents field from all file entries and Name from the
-    #     # top-level before comparing
-    #     exp_data = self.strip_fields( exp_data, 'contents' )
-    #     cur_data = self.strip_fields( cur_data, 'contents' )
-    #     del(exp_data['Name'])
-    #     del(cur_data['Name'])
-
-    #     diff_results = self.diff_trees( exp_data, cur_data)
-        
-    #     # Verify results
-    #     self.assertEqual( diff_results['left'], None)
-    #     self.assertEqual( diff_results['right'], None)
-    #     self.assertNotEqual( len( diff_results['common']['roots'] ), 0)
+        # Verify results
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
         
     # def test_invalid_target(self):
     #     """Tests diff subcommand with an invalid target.
