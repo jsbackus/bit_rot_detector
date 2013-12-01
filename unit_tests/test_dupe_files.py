@@ -68,6 +68,44 @@ class TestDupeFiles(BrdUnitBase):
         for exp_line in exp_out:
             self.assertTrue( exp_line in scr_lines )
         
+    def test_dissimilar_trees(self):
+        """Tests dupe_files subcommand with dissimilar trees.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = \
+            ['2 files with Fingerprint ' +
+             '0x1a0372738bb5b4b8360b47c4504a27e6f4811493:',
+             '    [rootA]/TreeA/DirA/LeafA/BunchOfAs.txt',
+             '    [rootA]/LeafB/BunchOfAs.txt',
+             '2 files with Fingerprint ' +
+             '0xfa75bf047f45891daee8f1fa4cd2bf58876770a5:',
+             '    [rootA]/TreeA/DirA/LeafA/BunchOfBs.txt',
+             '    [rootA]/LeafB/BunchOfBs.txt', '']
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        self.populate_db_from_tree( 
+            self.get_schema_3( str(mod_time), check_time ) )
+        self.conn.close()
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'dupe_files'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results 
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+        
     def test_single_tree_with_duplicates(self):
         """Tests dupe_files subcommand with a single tree that has duplicate
         files.
@@ -104,6 +142,31 @@ class TestDupeFiles(BrdUnitBase):
         self.assertEqual( len(scr_lines), len(exp_out) )
         for exp_line in exp_out:
             self.assertTrue( exp_line in scr_lines )
+        
+    def test_single_tree_without_duplicates(self):
+        """Tests dupe_files subcommand with a single tree that does not have 
+        duplicate files.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ''
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_3( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'dupe_files'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Verify results 
+        self.assertEqual( scr_out, exp_out )
         
     def test_output_option(self):
         """Tests dupe_files subcommand with --output option.
