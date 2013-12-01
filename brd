@@ -304,7 +304,7 @@ def serialize_hash_of_lists( hash_of_lists ):
     hash in no particular order, returning the items of each list one at a time
     as a tuple.
     """
-    keys_list = hash_of_lists.keys()
+    keys_list = list(hash_of_lists.keys())
     cur_key = ""
     cur_idx = -1
     while True:
@@ -1237,7 +1237,7 @@ def check_dupe_trees(db_conn):
     while 0 < len(waiting_for_fp):
         logging.debug("Waiting for fingerprint: %s", waiting_for_fp.keys())
 
-        for dir_id in waiting_for_fp.keys():
+        for dir_id in list(waiting_for_fp.keys()):
             logging.debug("Checking dir ID %s", dir_id)
             # Make sure we haven't already removed this id from the list
             if not dir_id in waiting_for_fp:
@@ -1269,7 +1269,7 @@ def check_dupe_trees(db_conn):
             
             # Add directory name to hash, if appropriate
             if not cmd_args.nodirname and 0 <= dirs_by_id[ dir_id ][ 1 ]:
-                dir_fp.update( dirs_by_id[ dir_id ][ 0 ] )
+                dir_fp.update( dirs_by_id[ dir_id ][ 0 ].encode('ascii') )
 
             # Add files, if appropriate
             if not (cmd_args.nofilefp and cmd_args.nofilename):
@@ -1286,9 +1286,9 @@ def check_dupe_trees(db_conn):
                 # Now sort results and add to cypher.
                 for name in sorted( tmp_file_list.keys() ):
                     if not cmd_args.nofilename:
-                        dir_fp.update( name )
+                        dir_fp.update( name.encode('ascii') )
                     if not cmd_args.nofilefp:
-                        dir_fp.update( tmp_file_list[ name ] )
+                        dir_fp.update( tmp_file_list[ name ].encode('ascii') )
                     
             # Add subdirectories, if appropriate
             if not (cmd_args.nosubdirname and cmd_args.nosubdirfp) and \
@@ -1302,9 +1302,9 @@ def check_dupe_trees(db_conn):
                 # Now sort results and add to cypher.
                 for name in sorted( tmp_dir_list.keys() ):
                     if not cmd_args.nosubdirname:
-                        dir_fp.update( name )
+                        dir_fp.update( name.encode('ascii') )
                     if not cmd_args.nosubdirfp:
-                        dir_fp.update( tmp_dir_list[ name ] )
+                        dir_fp.update( tmp_dir_list[ name ].encode('ascii') )
             
             # Finalize fingerprint and update data structures
             dir_fp = dir_fp.hexdigest()
@@ -1332,13 +1332,13 @@ def check_dupe_trees(db_conn):
                       len(waiting_for_fp) )
 
     # Iterate over list of fingerprints and remove any that only have 1 entry.
-    for fp in dirs_by_fp.keys():
+    for fp in list(dirs_by_fp.keys()):
         if len(dirs_by_fp[ fp ]) < 2:
             logging.debug( "Removing fp '%s' with sole directory '%s'",
                           fp, dirs_by_id[ dirs_by_fp[ fp ][ 0 ] ][ 0 ] )
             del(dirs_by_fp[ fp ])
 
-    for fp in dirs_by_fp.keys():
+    for fp in list(dirs_by_fp.keys()):
         parent_fp = None
         all_ancestors_same_fp = True
         for dir_id in dirs_by_fp[ fp ]:
