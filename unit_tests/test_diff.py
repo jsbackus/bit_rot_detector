@@ -25,8 +25,8 @@ class TestDiff(BrdUnitBase):
         # Call superclass's cleanup routine
         super(TestDiff,self).tearDown()
 
-    def test_identical_targets(self):
-        """Tests diff subcommand with identical targets.
+    def test_identical_trees(self):
+        """Tests diff subcommand with identical trees.
         """
 
         mod_time = int(time.time())
@@ -44,6 +44,60 @@ class TestDiff(BrdUnitBase):
         # Attempt to remove target subtree.
         scr_out = subprocess.check_output([self.script_name, 'diff', 
                                            'rootA', 'rootB'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Verify results
+        self.assertEqual( scr_out, exp_out )
+        
+#     def test_identical_files(self):
+#         """Tests diff subcommand with identical files.
+#         """
+
+#         mod_time = int(time.time())
+#         check_time = datetime.datetime.fromtimestamp(mod_time)
+#         exp_out = ''
+
+#         # Call open_db, which should create db and its tables
+#         self.open_db( self.default_db, False )
+
+#         # Populate the database with schema 1.
+#         exp_data = self.get_schema_1( str(mod_time), check_time )
+#         self.populate_db_from_tree( exp_data )
+#         self.conn.close()
+
+#         # Attempt to remove target subtree.
+#         scr_out = subprocess.check_output([self.script_name, '-d', 'diff', 
+#                                            'rootA/TreeA/DirA/LeafA/BunchOfAs.txt', 
+#                                            'rootA/LeafB/BunchOfAs.txt'], 
+# #                                          stderr=subprocess.STDOUT,
+#                                           universal_newlines=True)
+
+#         # Verify results
+#         self.assertEqual( scr_out, exp_out )
+
+    def test_file_vs_dir(self):
+        """Tests diff subcommand with file and directory.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = 'rootA/TreeA/DirA/LeafA/BunchOfAs.txt is a file.\n' + \
+            'rootA/LeafB is a directory.\n'
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Attempt to remove target subtree.
+        scr_out = subprocess.check_output([self.script_name, 'diff', 
+                                           'rootA/TreeA/DirA/LeafA/BunchOfAs.txt', 
+                                           'rootA/LeafB'], 
+                                          stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
         # Verify results
