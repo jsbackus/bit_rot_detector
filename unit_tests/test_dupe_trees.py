@@ -143,6 +143,39 @@ class TestDupeTrees(BrdUnitBase):
         # Clean up
         os.unlink( out_file )
         
+    def test_nofilefp_option(self):
+        """Tests dupe_trees subcommand with --nofilefp option.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        exp_out = ['2 dirs with Fingerprint ' + 
+                   '0x9ba569116eee959eae815d7c3d1f2bf81e518526:',
+                   '    [rootA]/TreeA/DirA', '    [rootD]/TreeD/DirA', '']
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        self.populate_db_from_tree( 
+            self.get_schema_3( str(mod_time), check_time ) )
+        self.conn.close()
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees',
+                                           '--nofilefp'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results 
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
     # def test_single_tree_with_duplicates(self):
     #     """Tests dupe_trees subcommand with a single tree that has duplicate
     #     files.
