@@ -32,7 +32,7 @@ class TestDupeTrees(BrdUnitBase):
         check_time = datetime.datetime.fromtimestamp(mod_time)
         exp_out = \
             ['2 dirs with Fingerprint ' +
-             '0x2ba3ff3a8495c0098d3d17e9ba52c41971fbbfff:', 
+             '0x4c02e31639d05130158e820ea66dd9b87bd385b1:',
              '    [rootB]', '    [rootA]', '']
 
         # Call open_db, which should create db and its tables
@@ -94,19 +94,19 @@ class TestDupeTrees(BrdUnitBase):
         out_file = 'test_output.txt'
         exp_out = \
             ['2 dirs with Fingerprint ' +
-             '0x2ba3ff3a8495c0098d3d17e9ba52c41971fbbfff:\n', 
+             '0x4c02e31639d05130158e820ea66dd9b87bd385b1:\n',
              '    [rootB]\n', '    [rootA]\n']
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
-        # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        # Populate the database with schema 2.
+        exp_data = self.get_schema_2( str(mod_time), check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
         # Check --output
-        scr_out = subprocess.check_output([self.script_name, 'dupe_trees', 
+        scr_out = subprocess.check_output([self.script_name,  'dupe_trees', 
                                            '--output', out_file], 
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)

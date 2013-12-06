@@ -1174,7 +1174,6 @@ def check_dupe_trees(db_conn):
         logging.debug( "Found directory '%s', ID=%s, Parent=%s",
                        dir_name, dir_id, dir_parent )
         
-
     # Select all directories that don't have any child directories into
     # temporary table
     cursor.execute("SELECT Path_ID FROM '" +
@@ -1192,9 +1191,11 @@ def check_dupe_trees(db_conn):
         
     while 0 < len(waiting_for_fp):
         logging.debug("Waiting for fingerprint: %s", waiting_for_fp.keys())
+        logging.debug("dirs_by_parent: %s", dirs_by_parent )
 
         for dir_id in list(waiting_for_fp.keys()):
-            logging.debug("Checking dir ID %s", dir_id)
+            logging.debug("Checking '%s' (%s)", dirs_by_id[ dir_id ][ 0 ],
+                          dir_id)
             # Make sure we haven't already removed this id from the list
             if not dir_id in waiting_for_fp:
                 continue
@@ -1225,7 +1226,9 @@ def check_dupe_trees(db_conn):
             
             # Add directory name to hash, if appropriate
             if not cmd_args.nodirname and 0 <= dirs_by_id[ dir_id ][ 1 ]:
-                dir_fp.update( dirs_by_id[ dir_id ][ 0 ].encode('ascii') )
+                tmp_data = dirs_by_id[ dir_id ][ 0 ].encode('ascii')
+                logging.debug( "Adding '%s' to hash", tmp_data )
+                dir_fp.update( tmp_data )
 
             # Add files, if appropriate
             if not (cmd_args.nofilefp and cmd_args.nofilename):
@@ -1242,14 +1245,20 @@ def check_dupe_trees(db_conn):
                 # Now sort results and add to cypher.
                 for name in sorted( tmp_file_list.keys() ):
                     if not cmd_args.nofilename:
-                        dir_fp.update( name.encode('ascii') )
+                        tmp_data = name.encode('ascii')
+                        logging.debug( "Adding '%s' to hash", tmp_data )
+                        dir_fp.update( tmp_data )
                     if not cmd_args.nofilefp:
-                        dir_fp.update( tmp_file_list[ name ].encode('ascii') )
+                        tmp_data =  tmp_file_list[ name ].encode('ascii') 
+                        logging.debug( "Adding '%s' to hash", tmp_data )
+                        dir_fp.update( tmp_data )
                     
             # Add subdirectories, if appropriate
             if not (cmd_args.nosubdirname and cmd_args.nosubdirfp) and \
                     dir_id in dirs_by_parent:
                 # Build a list of { directory name -> fp }
+                logging.debug( "Processing children: %s", 
+                               dirs_by_parent[ dir_id ] )
                 tmp_dir_list = dict()
                 for entry in dirs_by_parent[ dir_id ]:
                     dir_info = dirs_by_id[ entry ]
@@ -1258,9 +1267,13 @@ def check_dupe_trees(db_conn):
                 # Now sort results and add to cypher.
                 for name in sorted( tmp_dir_list.keys() ):
                     if not cmd_args.nosubdirname:
-                        dir_fp.update( name.encode('ascii') )
+                        tmp_data =  name.encode('ascii') 
+                        logging.debug( "Adding '%s' to hash", tmp_data )
+                        dir_fp.update( tmp_data )
                     if not cmd_args.nosubdirfp:
-                        dir_fp.update( tmp_dir_list[ name ].encode('ascii') )
+                        tmp_data = tmp_dir_list[ name ].encode('ascii') 
+                        logging.debug( "Adding '%s' to hash", tmp_data )
+                        dir_fp.update( tmp_data )
             
             # Finalize fingerprint and update data structures
             dir_fp = dir_fp.hexdigest()
@@ -1280,7 +1293,7 @@ def check_dupe_trees(db_conn):
                 # If parent isn't already in the list, add an entry and copy
                 # over contents from dirs_by_parent
                 if not dir_parent in waiting_for_fp:
-                    waiting_for_fp[ dir_parent ] = dirs_by_parent[ dir_parent ]
+                    waiting_for_fp[ dir_parent ] = list(dirs_by_parent[ dir_parent ])
                 # Remove this dir from the list of children waiting for
                 # fingerprints
                 waiting_for_fp[ dir_parent ].remove( dir_id )
@@ -1340,6 +1353,7 @@ def check_dupe_trees(db_conn):
         # Open dupes file, if specified
         fh = None
         if 0 < len(cmd_args.output):
+            logging.info("Writing to file '" + cmd_args.output + "'")
             fh = io.open(cmd_args.output, 'wt')
         elif not cmd_args.verbose or (0 < len(cmd_args.log)):
             fh = io.open(sys.stdout.fileno(), 'wt')
