@@ -233,6 +233,58 @@ class TestDupeTrees(BrdUnitBase):
         for exp_line in exp_out:
             self.assertTrue( exp_line in scr_lines )
 
+    def test_nodirname_option(self):
+        """Tests dupe_trees subcommand with --nodirname option.
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        check_out = ['2 dirs with Fingerprint '+
+                     '0x4c02e31639d05130158e820ea66dd9b87bd385b1:',
+                     '    [rootB]', '    [rootA]', '']
+
+        exp_out = ['2 dirs with Fingerprint ' +
+                   '0x85f1d8f066c57b7650d1733f40b23fa7597df836:', 
+                   '    [rootB]', '    [rootA]', 
+                   '4 dirs with Fingerprint ' +
+                   '0x183831bb75375e5a0fdd885c3b4425472519b7e9:', 
+                   '    [rootA]/LeafB', '    [rootB]/TreeA/DirA/LeafA', 
+                   '    [rootA]/TreeA/DirA/LeafA', 
+                   '    [rootB]/LeafB', '']
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 2
+        self.populate_db_from_tree( 
+            self.get_schema_2( str(mod_time), check_time ) )
+        self.conn.close()
+
+        # Check targets normally.
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results
+        self.assertEqual( len(scr_lines), len(check_out) )
+        for exp_line in check_out:
+            self.assertTrue( exp_line in scr_lines )
+
+        # Check targets with --nodirname
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees',
+                                           '--nodirname'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results 
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
     # def test_single_tree_with_duplicates(self):
     #     """Tests dupe_trees subcommand with a single tree that has duplicate
     #     files.
