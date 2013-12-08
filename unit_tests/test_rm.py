@@ -124,7 +124,14 @@ class TestRm(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_2( str(mod_time), check_time )
+        exp_data = self.get_schema_1( str(mod_time), check_time )
+
+        # Append another schema 1 with a new root name
+        tmp_schema = self.get_schema_1( str(mod_time), check_time, 
+                                        rootName = 'rootB', first_file_id=6,
+                                        first_dir_id=6)
+        exp_data['roots']['rootB'] = tmp_schema['roots']['rootB']
+
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 

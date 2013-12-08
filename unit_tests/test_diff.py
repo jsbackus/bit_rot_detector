@@ -35,9 +35,14 @@ class TestDiff(BrdUnitBase):
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
-        # Populate the database with schema 1.
-        exp_data = self.get_schema_2( str(mod_time), check_time )
-        self.populate_db_from_tree( exp_data )
+        # Populate the database with schema 1
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        # Append another schema 1 with a new root name
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time, 
+                               rootName = 'rootB', first_file_id=6,
+                               first_dir_id=6) )
         self.conn.close()
 
         # Check targets

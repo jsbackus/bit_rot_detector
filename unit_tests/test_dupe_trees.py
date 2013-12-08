@@ -38,9 +38,14 @@ class TestDupeTrees(BrdUnitBase):
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
-        # Populate the database with schema 1.
-        exp_data = self.get_schema_2( str(mod_time), check_time )
-        self.populate_db_from_tree( exp_data )
+        # Populate the database with schema 1
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        # Append another schema 1 with a new root name
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time, 
+                               rootName = 'rootB', first_file_id=6,
+                               first_dir_id=6) )
         self.conn.close()
 
         # Check targets
@@ -101,9 +106,14 @@ class TestDupeTrees(BrdUnitBase):
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
-        # Populate the database with schema 2.
-        exp_data = self.get_schema_2( str(mod_time), check_time )
-        self.populate_db_from_tree( exp_data )
+        # Populate the database with schema 1
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        # Append another schema 1 with a new root name
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time, 
+                               rootName = 'rootB', first_file_id=6,
+                               first_dir_id=6) )
         self.conn.close()
 
         # Check --output
@@ -205,6 +215,9 @@ class TestDupeTrees(BrdUnitBase):
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
+        # Populate the database with schema 1
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
         # Populate the database with schema 4
         self.populate_db_from_tree( 
             self.get_schema_4( str(mod_time), check_time ) )
@@ -283,6 +296,60 @@ class TestDupeTrees(BrdUnitBase):
         for exp_line in exp_out:
             self.assertTrue( exp_line in scr_lines )
 
+    def test_nosubdirname_option(self):
+        """Tests dupe_trees subcommand with --nosubdirname option
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        check_out = ['4 dirs with Fingerprint ' + 
+                   '0x183831bb75375e5a0fdd885c3b4425472519b7e9:', 
+                   '    [rootA]/LeafB', 
+                   '    [rootB]/TreeD/DirD/LeafD', 
+                   '    [rootA]/TreeA/DirA/LeafA', 
+                   '    [rootB]/LeafE', '']
+        exp_out = ['2 dirs with Fingerprint ' +
+                   '0x6a9ccb186411173dd33d8ad97c476efe70ff36d7:', 
+                   '    [rootB]', 
+                   '    [rootA]'] + check_out 
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        # Populate the database with schema 2.
+        self.populate_db_from_tree( 
+            self.get_schema_2( str(mod_time), check_time ) )
+        self.conn.close()
+
+        # Check targets with just --nodirname.
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees',
+                                           '--nodirname'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results
+        self.assertEqual( len(scr_lines), len(check_out) )
+        for exp_line in check_out:
+            self.assertTrue( exp_line in scr_lines )
+
+        # Check targets with --nosubdirname and --nodirname
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees',
+                                           '--nosubdirname', '--nodirname'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results 
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
     def test_nodirname_option(self):
         """Tests dupe_trees subcommand with --nodirname option.
         """
@@ -305,9 +372,14 @@ class TestDupeTrees(BrdUnitBase):
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
-        # Populate the database with schema 2
+        # Populate the database with schema 1
         self.populate_db_from_tree( 
-            self.get_schema_2( str(mod_time), check_time ) )
+            self.get_schema_1( str(mod_time), check_time ) )
+        # Append another schema 1 with a new root name
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time, 
+                               rootName = 'rootB', first_file_id=6,
+                               first_dir_id=6) )
         self.conn.close()
 
         # Check targets normally.
