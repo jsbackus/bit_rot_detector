@@ -403,10 +403,15 @@ class BrdUnitBase(unittest.TestCase):
 
                 for subtree in tree_data['children'].keys():
                     self.build_tree( tree_data['children'][subtree], path )
+
             else:
                 # File. Open it and dump contents to it
                 with open(path, 'wt') as f:
                     f.write( tree_data['contents'] + os.linesep )
+
+                # Update utime and atime.
+                os.utime( path, ( tree_data['LastModified'], 
+                                  tree_data['LastModified'] ) )
                 
     def del_tree(self, path):
         """Calls shutil.rmtree to remove the specified directory tree.
