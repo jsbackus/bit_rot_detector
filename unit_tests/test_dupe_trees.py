@@ -69,6 +69,7 @@ class TestDupeTrees(BrdUnitBase):
         # Populate the database with schema 1.
         self.populate_db_from_tree( 
             self.get_schema_1( str(mod_time), check_time ) )
+        # Populate the database with schema 3.
         self.populate_db_from_tree( 
             self.get_schema_3( str(mod_time), check_time ) )
         self.conn.close()
@@ -160,6 +161,7 @@ class TestDupeTrees(BrdUnitBase):
         # Populate the database with schema 1.
         self.populate_db_from_tree( 
             self.get_schema_1( str(mod_time), check_time ) )
+        # Populate the database with schema 3.
         self.populate_db_from_tree( 
             self.get_schema_3( str(mod_time), check_time ) )
         self.conn.close()
@@ -223,6 +225,54 @@ class TestDupeTrees(BrdUnitBase):
         # Check targets with --nofilename
         scr_out = subprocess.check_output([self.script_name, 'dupe_trees',
                                            '--nofilename'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results 
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
+    def test_nosubdirfp_option(self):
+        """Tests dupe_trees subcommand with --nosubdirfp option
+        """
+
+        mod_time = int(time.time())
+        check_time = datetime.datetime.fromtimestamp(mod_time)
+        check_out = ['']
+        exp_out = ['2 dirs with Fingerprint ' +
+                     '0xa937d97faf45931eeb5690804c2d26d519c06cf9:', 
+                     '    [rootA]/TreeA/DirA', 
+                     '    [rootD]/TreeD/DirA', '']
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( 
+            self.get_schema_1( str(mod_time), check_time ) )
+        # Populate the database with schema 3.
+        self.populate_db_from_tree( 
+            self.get_schema_3( str(mod_time), check_time ) )
+        self.conn.close()
+
+        # Check targets normally.
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees'], 
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = scr_out.split('\n')
+
+        # Verify results
+        self.assertEqual( len(scr_lines), len(check_out) )
+        for exp_line in check_out:
+            self.assertTrue( exp_line in scr_lines )
+
+        # Check targets with --nofilename
+        scr_out = subprocess.check_output([self.script_name, 'dupe_trees',
+                                           '--nosubdirfp'], 
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
