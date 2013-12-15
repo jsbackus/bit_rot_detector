@@ -153,7 +153,7 @@ class TestScan(BrdUnitBase):
                                                 "Parent_ID","Path_ID"])
         got_data = self.strip_fields(got_data, ["contents","File_ID",
                                                 "Parent_ID","Path_ID"])
-        got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
+        got_data['roots'][target_name]['Name'] = 'rootA'
         results = self.diff_trees( exp_data['roots']['rootA'], 
                                    got_data['roots'][target_name] )
 
@@ -421,6 +421,119 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['left'], None )
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
+        
+    def test_check_only_option(self):
+        """Tests scan subcommand with --check-only option and alias --dry-run.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=30)
+        exp_out = ["File 'test_tree/rootA/BunchOfCs.txt' is newer than " +
+                   "database record. Marking as \"bad\"...",
+                   "Subdirectory 'LeafB' no longer exists in directory " +
+                   "'test_tree/rootA'!",
+                   "File 'BunchOfAs.txt' no longer exists in directory " +
+                   "'test_tree/rootA/LeafB'!",
+                   "File 'BunchOfBs.txt' no longer exists in directory " +
+                   "'test_tree/rootA/LeafB'!",
+                   "File 'test_tree/rootA/TreeA/DirA/LeafA/BunchOfAs.txt' " +
+                   'is newer than database record. Marking as "bad"...',
+                   "File 'test_tree/rootA/TreeA/DirA/LeafA/BunchOfBs.txt' is " +
+                   'newer than database record. Marking as "bad"...']
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        exp_data = self.get_schema_5( mod_time, mod_time, target_name )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Populate filesystem with a partial schema 1, modified recently
+        tmp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        del(tmp_data['roots']['rootA']['children']['LeafB'])
+        self.build_tree( tmp_data )
+
+        # Check targets with --check-only
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           '--check-only', target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = list()
+        for line in scr_out.split('\n'):
+            warn_heading = 'WARNING] '
+            idx = line.find(warn_heading)
+            if 0 <= idx:
+                scr_lines.append( line[ idx + len(warn_heading): ] )
+            elif 0 < len(line):
+                scr_lines.append( line )
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents, LastChecked, and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID",
+                                                "LastChecked"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID",
+                                                "LastChecked"])
+        results = self.diff_trees( exp_data['roots'][target_name], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+        
+        # Check targets with --dry-run
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           '--dry-run', target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = list()
+        for line in scr_out.split('\n'):
+            warn_heading = 'WARNING] '
+            idx = line.find(warn_heading)
+            if 0 <= idx:
+                scr_lines.append( line[ idx + len(warn_heading): ] )
+            elif 0 < len(line):
+                scr_lines.append( line )
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents, LastChecked, and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID",
+                                                "LastChecked"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID",
+                                                "LastChecked"])
+        results = self.diff_trees( exp_data['roots'][target_name], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
         
         
 # Allow unit test to run on its own

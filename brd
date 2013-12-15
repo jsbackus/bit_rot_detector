@@ -113,12 +113,15 @@ def parse_args():
                            'that no longer exist on the filesystem.')
     scan_mode.add_argument('-P', '--progress', action='store_true',
                            help='Displays progress meter.')
-    scan_mode.add_argument('--dry-run', action='store_true',
+    scan_mode.add_argument('--check-only', action='store_true',
                            help='Scans the specified target but does not ' +
                            'update the database when changes are detected.' +
                            ' Useful for checking for malicious damage when ' +
                            ' scanning files that are known to not have ' +
                            'changed.')
+    scan_mode.add_argument('--dry-run', action='store_true', 
+                           dest='check_only', 
+                           help='Alias for --check-only.')
     scan_mode.add_argument('-s', '--skip-recent', action='store_true',
                            help='When scanning, skips files in directories that'
                            + ' have been checked recently. See --expr.')
@@ -193,7 +196,7 @@ def parse_args():
                               'database has been modified since the file was ' +
                               'last updated.')
     checkdb_mode.add_argument('--dry-run', action='store_true', 
-                              dest='check-only', 
+                              dest='check_only', 
                               help='Alias for --check-only.')
     
     # list subparser
@@ -416,13 +419,18 @@ def process_file(node, filename, mode, file_db_dict, cursor):
             # Compare modification times. If this file is newer, 
             # update database. Otherwise issue a warning.
             if float(db_mtime) < mode.st_mtime:
-                logging.info('File \'' + fullname + '\' is newer than '
-                             + 'database record. Updating...')
+                if not cmd_args.check_only:
+                    logging.info('File \'' + fullname + '\' is newer than '
+                                 + 'database record. Updating...')
+                    update_file(db_id, fp, mode, cursor)
 
-                update_file(db_id, fp, mode, cursor)
-
-                # Return dict indicating update
-                ret_val['updated'] = 1
+                    # Return dict indicating update
+                    ret_val['updated'] = 1
+                else:
+                    logging.warning('File \'' + fullname + '\' is newer than '
+                                 + 'database record. Marking as "bad"...')
+                    ret_val['bad'] = 1
+                    
                 return ret_val
             else:
                 logging.warning('File \'' + fullname + '\' does not ' +
@@ -454,7 +462,14 @@ def process_file(node, filename, mode, file_db_dict, cursor):
 
     except KeyError:
         # File doesn't exist in database - add
-        add_file(filename, fp, mode, node[1], cursor)
+        if not cmd_args.check_only:
+            logging.debug('File \'' + fullname + 
+                          '\' not in database. Adding...')
+            add_file(filename, fp, mode, node[1], cursor)
+        else:
+            logging.debug('File \'' + fullname + 
+                          '\' not in database. Marking as "added", but ' +
+                          'database not actually touched.')
 
         # Return dict indicating addition
         ret_val['added'] = 1
@@ -827,7 +842,13 @@ def crawl_tree(target, target_info, cursor):
                             dir_stats['good'] += 1
                         except KeyError:
                             # Item not in list. Add then append to queue.
-                            tmp_data = add_dir(entry, node[1], cursor)
+                            if not cmd_args.check_only:
+                                tmp_data = add_dir(entry, node[1], cursor)
+                            else:
+                                logging.info('Dir %s not in database. Marking' +
+                                             ' as "added", but database has ' +
+                                             'not been touched!')
+
                             dir_queue.append( (entry_full_name, tmp_data[0],
                                                tmp_data[1]) )
 
@@ -1935,6 +1956,8 @@ if __name__ == '__main__':
         if cmd_args.subcommand == 'scan':
             if cmd_args.prune:
                 ok_to_prune = True
+            if cmd_args.check_only:
+                ok_to_prune = False
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
                 # Scan each specified root.
