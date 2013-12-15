@@ -214,6 +214,60 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
         
+    def test_existing_file(self):
+        """Tests scan subcommand with an existing, changed file.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=30)
+
+        # Populate the database with schema 5, modified 1 month ago.
+        root_name = os.path.join('test_tree', 'rootA')
+        exp_data = self.get_schema_5( mod_time, mod_time, root_name ) 
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Populate filesystem with schema 1, modified recently
+        post_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        self.build_tree( post_data )
+
+        # Replace rootA/LeafB/BunchOfAs.txt in expected data with changed record
+        exp_data['roots'][root_name]['children']['LeafB']['children']\
+            ['BunchOfAs.txt'] = post_data['roots']['rootA']['children']\
+            ['LeafB']['children']['BunchOfAs.txt']
+
+        # Check targets
+        target_name = os.path.join('test_tree', 'rootA', 'LeafB', 
+                                   'BunchOfAs.txt')
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        results = self.diff_trees( exp_data['roots'][root_name], 
+                                   got_data['roots'][root_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
     def test_multiple_roots(self):
         """Tests scan subcommand with multiple new roots.
         """

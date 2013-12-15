@@ -694,10 +694,9 @@ def scan_target(target, db_conn):
         #cursor.execute("SELECT LastChecked FROM '" + table_names['dirs'] + 
         #               "' WHERE Path_ID=?", (target_info['dir_id'],))
         #row = cursor.fetchone()
-    return crawl_tree(target, target_info['dir_id'], 
-                      target_info['last_checked'], cursor)
+    return crawl_tree(target, target_info, cursor)
         
-def crawl_tree(rootdir, dir_id, last_checked, cursor):
+def crawl_tree(target, target_info, cursor):
     """Crawls the specified directory, processing all files that it finds.
     Returns 0 if successful or 1 if error.
     """
@@ -705,14 +704,29 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
     # Build timedelta object used to determine if entities have expired.
     expr_check = datetime.timedelta(cmd_args.expr)
 
-    # Push root onto queue to start process
-    dir_queue = [(rootdir, dir_id, last_checked)]
-
     # Order: (added, good, updated, bad, missing, skipped)
     file_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
                    'missing' : 0, 'skipped' : 0, 'bytes' : 0, 'time' : 0.0 }
     dir_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
                   'missing' : 0, 'skipped' : 0}
+
+    # Make sure target is a directory
+    if target_info['file_id'] == None:
+        # Push root onto queue to start process
+        dir_queue = [(target, target_info['dir_id'], 
+                      target_info['last_checked'])]
+    else:
+        # Otherwise, process single file and move on
+        dir_queue = list()
+        # TO DO
+        entry_stat = os.stat(target)
+        node = ( os.path.dirname( target ), )
+        file_name = os.path.basename( target )
+        file_db_data = get_file_items_from_db( cursor, target_info['dir_id'] )
+                    
+        file_stats = add_dicts(file_stats, process_file(node, file_name, 
+                                                        entry_stat, 
+                                                        file_db_data, cursor ) )
 
     error_flag = 0
 
@@ -723,7 +737,6 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
 
             # Log the directory that we are processing
             logging.info("Processing directory '%s'", node[0])
-            logging.debug("%s", node)
 
             # Figure out if we're skipping the files in this directory
             check_files = True
@@ -847,7 +860,7 @@ def crawl_tree(rootdir, dir_id, last_checked, cursor):
 
     # Print stats!
     action_names = ('added', 'good', 'updated', 'BAD', 'MISSING', 'skipped')
-    logging.info('Finished processing root \'' + rootdir + '\': ')
+    logging.info('Finished processing root \'' + target + '\': ')
     logging.info('    Files:')
     for action in action_names:
         logging.info('      %s: %s', action, file_stats[action.lower()])
