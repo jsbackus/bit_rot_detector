@@ -316,6 +316,58 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
         
+    def test_use_root(self):
+        """Tests scan subcommand with --use-root option.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
+        # Build tree with schema 1
+        schema_data = self.get_schema_1( mod_time, check_time )
+        self.build_tree( schema_data )
+
+        # Update root name
+        root_name = os.path.join('myTestPrefix', 'rootA')
+        exp_data = { 'Name': '', 
+                     'roots': { root_name: schema_data['roots']['rootA'] } }
+        exp_data['roots'][root_name]['Name'] = root_name
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Check targets
+        target_name = os.path.join('test_tree', 'rootA')
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           '--use-root', 'myTestPrefix',
+                                           target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        results = self.diff_trees( exp_data['roots'][root_name], 
+                                   got_data['roots'][root_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
         
 # Allow unit test to run on its own
 if __name__ == '__main__':
