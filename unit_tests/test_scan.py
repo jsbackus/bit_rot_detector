@@ -122,14 +122,14 @@ class TestScan(BrdUnitBase):
         check_time = mod_time
         mod_time = mod_time - datetime.timedelta(days=30)
 
-        # Populate the database with schema 1, modified 1 month ago.
-        self.populate_db_from_tree( self.get_schema_1( mod_time, mod_time ) )
+        # Populate the database with schema 5, modified 1 month ago.
+        self.populate_db_from_tree( self.get_schema_5( mod_time, mod_time, 
+                                                       'test_tree/rootA' ) )
         self.conn.close()
 
-        # Populate filesystem with schema 3, modified recently
-        exp_data = self.get_schema_1( check_time, check_time )
+        # Populate filesystem with schema 1, modified recently
+        exp_data = self.get_schema_1( check_time, check_time, 'rootA' )
         self.build_tree( exp_data )
-
 
         # Check targets
         scr_out = subprocess.check_output([self.script_name, 'scan',
@@ -157,37 +157,6 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['left'], None )
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
-        
-    # def test_dissimilar_trees(self):
-    #     """Tests scan subcommand with dissimilar trees.
-    #     """
-
-    #     mod_time = int(time.time())
-    #     check_time = datetime.datetime.fromtimestamp(mod_time)
-    #     exp_out = ['']
-
-    #     # Call open_db, which should create db and its tables
-    #     self.open_db( self.default_db, False )
-
-    #     # Populate the database with schema 1.
-    #     self.populate_db_from_tree( 
-    #         self.get_schema_1( str(mod_time), check_time ) )
-    #     # Populate the database with schema 3.
-    #     self.populate_db_from_tree( 
-    #         self.get_schema_3( str(mod_time), check_time ) )
-    #     self.conn.close()
-
-    #     # Check targets
-    #     scr_out = subprocess.check_output([self.script_name, 'scan'], 
-    #                                       stderr=subprocess.STDOUT,
-    #                                       universal_newlines=True)
-
-    #     scr_lines = scr_out.split('\n')
-
-    #     # Verify results 
-    #     self.assertEqual( len(scr_lines), len(exp_out) )
-    #     for exp_line in exp_out:
-    #         self.assertTrue( exp_line in scr_lines )
         
 # Allow unit test to run on its own
 if __name__ == '__main__':

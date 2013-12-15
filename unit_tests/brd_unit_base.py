@@ -716,3 +716,73 @@ class BrdUnitBase(unittest.TestCase):
 
         return table_data
     
+    def get_schema_5(self, last_modified=None, last_checked=None, 
+                     rootName='rootA', first_file_id=1, first_dir_id=1):
+        """Builds and returns a table_data object for general test.
+        """
+        # Schema similar to schema 1 but with different file contents.
+        table_data = { 'roots': dict(), 'Name': 'test_tree' }
+
+        tmp_dir = { 'Path_ID': first_dir_id + 4, 
+                    'Parent_ID': first_dir_id + 3, 'LastChecked': last_checked,
+                    'children': dict(), 'Name': 'LeafA' }
+        tmp_file = { 'contents': 'f'*256, 'File_ID': first_file_id + 4, 
+                     'Parent_ID': first_dir_id + 4,
+                     'LastModified': last_modified, 'Size': 257,
+                     'Fingerprint': 'a5ff36b8df5d62c3284d70bfcb149fc519712d46',
+                     'Name': 'BunchOfAs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+
+        tmp_file = { 'contents': 'g'*256, 'File_ID': first_file_id + 3, 
+                     'Parent_ID': first_dir_id + 4,
+                     'LastModified': last_modified, 'Size': 257,
+                     'Fingerprint': 'ba5cba06c22bb5448d87118c2a68a7db2c0dd1bd', 
+                     'Name': 'BunchOfBs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+
+        tmp_dir = { 'Path_ID': first_dir_id + 3, 
+                    'Parent_ID': first_dir_id + 1, 'LastChecked': last_checked,
+                    'Name': 'DirA', 'children': { tmp_dir['Name'] : tmp_dir } }
+        
+        tmp_dir = { 'Path_ID': first_dir_id + 1, 
+                    'Parent_ID': first_dir_id + 0, 'LastChecked': last_checked,
+                    'Name': 'TreeA', 'children': { tmp_dir['Name'] : tmp_dir } }
+        
+        tmp_dir = { 'Path_ID': first_dir_id + 0, 'Parent_ID': -1, 
+                    'LastChecked': last_checked,
+                    'Name': rootName, 'children': { tmp_dir['Name'] : tmp_dir }
+                    }
+        
+        table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
+
+        tmp_dir = { 'Path_ID': first_dir_id + 2, 
+                    'Parent_ID': first_dir_id + 0, 'LastChecked': last_checked,
+                    'children': dict(), 'Name': 'LeafB' }
+
+        tmp_file = { 'contents': 'd'*256, 'File_ID': first_file_id + 2, 
+                     'Parent_ID': first_dir_id + 2,
+                     'LastModified': last_modified, 'Size': 257,
+                     'Fingerprint': '765101b7f5b353693477d6636011513e2be795df',
+                     'Name': 'BunchOfAs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+
+
+        tmp_file = { 'contents': 'e'*256, 'File_ID': first_file_id + 1, 
+                     'Parent_ID': first_dir_id + 2,
+                     'LastModified': last_modified, 'Size': 257,
+                     'Fingerprint': 'bd7b61341bfa37a21026883c90da697997f43745', 
+                     'Name': 'BunchOfBs.txt' }
+        tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
+        
+        table_data['roots'][rootName]['children'][ tmp_dir['Name'] ] = tmp_dir
+
+        tmp_file = { 'contents': 'h'*256, 'File_ID': first_file_id + 0, 
+                     'Parent_ID': first_dir_id + 0,
+                     'LastModified': last_modified, 'Size': 257,
+                     'Fingerprint': 'a8ae4254b998ecafdc841ebf0fd13da3baab49f7', 
+                     'Name': 'BunchOfCs.txt' }
+
+        table_data['roots'][rootName]['children'][ tmp_file['Name'] ] = tmp_file
+
+        return table_data
+    
