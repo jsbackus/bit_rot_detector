@@ -5,6 +5,7 @@ import subprocess
 import unittest
 import datetime
 import time
+import shutil
 
 from brd_unit_base import BrdUnitBase
 
@@ -21,16 +22,18 @@ class TestScan(BrdUnitBase):
         super(TestScan,self).setUp()
         
     def tearDown(self):
+        # Clean up test tree
+        shutil.rmtree('test_tree')
+
         # Call superclass's cleanup routine
         super(TestScan,self).tearDown()
-
+        
     def test_new_root(self):
         """Tests scan subcommand with a single new root.
         """
 
-        mod_time = time.time() #int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
-        mod_time = check_time
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
 
         # Build tree with schema 1
         exp_data = self.get_schema_1( mod_time, check_time )
@@ -49,9 +52,56 @@ class TestScan(BrdUnitBase):
         got_data = self.build_tree_data_from_db( self.conn.cursor() )
         self.conn.close()
 
-        # Remove contents fields and compare
-        exp_data = self.strip_fields(exp_data, "contents")
-        got_data = self.strip_fields(got_data, "contents")
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots']['test_tree/rootA'] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
+    def test_unchanged_root(self):
+        """Tests scan subcommand with an existing, unchanged root.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
+        # Build tree with schema 1
+        exp_data = self.get_schema_1( mod_time, check_time )
+        self.build_tree( exp_data )
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           'test_tree/rootA'],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
         got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
         results = self.diff_trees( exp_data['roots']['rootA'], 
                                    got_data['roots']['test_tree/rootA'] )
