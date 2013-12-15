@@ -221,8 +221,8 @@ class TestScan(BrdUnitBase):
         self.build_tree( tmp_schema )
         exp_data['roots']['test_tree/rootA'] = tmp_schema['roots']['rootA']
 
-        # Build schema 3 and add to expect data
-        tmp_schema = self.get_schema_3( mod_time, check_time, 
+        # Build another schema 1 with a different root and add to expect data
+        tmp_schema = self.get_schema_1( mod_time, check_time, 
                                         rootName = 'rootB', first_file_id=6,
                                         first_dir_id=6)
         self.build_tree( tmp_schema )
@@ -251,10 +251,6 @@ class TestScan(BrdUnitBase):
         exp_data['roots']['test_tree/rootB']['Name'] = 'test_tree/rootB'
         results = self.diff_trees( exp_data['roots'], 
                                    got_data['roots'] )
-
-        print('Common:' +str(results['common']))
-        print('Left:' +str(results['left']))
-        print('Right:' +str(results['right']))
 
         # Verify results 
         self.assertEqual( results['left'], None )
