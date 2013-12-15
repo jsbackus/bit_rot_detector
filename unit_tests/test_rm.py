@@ -129,7 +129,7 @@ class TestRm(BrdUnitBase):
 
         # Append another schema 1 with a new root name
         tmp_schema = self.get_schema_1( mod_time, check_time, 
-                                        rootName = 'rootB', first_file_id=6,
+                                        root_name = 'rootB', first_file_id=6,
                                         first_dir_id=6)
         exp_data['roots']['rootB'] = tmp_schema['roots']['rootB']
 

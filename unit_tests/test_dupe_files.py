@@ -57,7 +57,7 @@ class TestDupeFiles(BrdUnitBase):
         # Append another schema 1 with a new root name
         self.populate_db_from_tree( 
             self.get_schema_1( mod_time, check_time, 
-                               rootName = 'rootB', first_file_id=6,
+                               root_name = 'rootB', first_file_id=6,
                                first_dir_id=6) )
         self.conn.close()
 

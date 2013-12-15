@@ -436,7 +436,7 @@ class BrdUnitBase(unittest.TestCase):
         shutil.rmtree(path)
 
     def get_schema_1(self, last_modified=None, last_checked=None, 
-                     rootName='rootA', first_file_id=1, first_dir_id=1):
+                     root_name='rootA', first_file_id=1, first_dir_id=1):
         """Builds and returns a table_data object for general test.
         """
 
@@ -469,7 +469,7 @@ class BrdUnitBase(unittest.TestCase):
         
         tmp_dir = { 'Path_ID': first_file_id + 0, 
                     'Parent_ID': -1, 'LastChecked': last_checked,
-                    'Name': rootName, 'children': { tmp_dir['Name'] : tmp_dir }
+                    'Name': root_name, 'children': { tmp_dir['Name'] : tmp_dir }
                     }
         
         table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
@@ -493,7 +493,7 @@ class BrdUnitBase(unittest.TestCase):
                      'Name': 'BunchOfBs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
         
-        table_data['roots'][rootName]['children'][ tmp_dir['Name'] ] = tmp_dir
+        table_data['roots'][root_name]['children'][ tmp_dir['Name'] ] = tmp_dir
 
         tmp_file = { 'contents': 'c'*256, 'File_ID': first_file_id + 0, 
                      'Parent_ID': first_dir_id + 0,
@@ -501,12 +501,12 @@ class BrdUnitBase(unittest.TestCase):
                      'Fingerprint': 'b145bb8710c9b6624bb46631eecc3bbcc335d0ab', 
                      'Name': 'BunchOfCs.txt' }
 
-        table_data['roots'][rootName]['children'][ tmp_file['Name'] ] = tmp_file
+        table_data['roots'][root_name]['children'][ tmp_file['Name'] ] = tmp_file
 
         return table_data
     
     def get_schema_2(self, last_modified=None, last_checked=None, 
-                     rootName='rootB', first_file_id=6, first_dir_id=6):
+                     root_name='rootB', first_file_id=6, first_dir_id=6):
         """Builds and returns a table_data object for general test.
         """
 
@@ -541,7 +541,7 @@ class BrdUnitBase(unittest.TestCase):
         
         tmp_dir = { 'Path_ID': first_file_id + 0, 
                     'Parent_ID': -1, 'LastChecked': last_checked,
-                    'Name': rootName, 'children': { tmp_dir['Name'] : tmp_dir }
+                    'Name': root_name, 'children': { tmp_dir['Name'] : tmp_dir }
                     }
         
         table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
@@ -565,7 +565,7 @@ class BrdUnitBase(unittest.TestCase):
                      'Name': 'BunchOfBs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
         
-        table_data['roots'][rootName]['children'][ tmp_dir['Name'] ] = tmp_dir
+        table_data['roots'][root_name]['children'][ tmp_dir['Name'] ] = tmp_dir
 
         tmp_file = { 'contents': 'c'*256, 'File_ID': first_file_id + 0, 
                      'Parent_ID': first_dir_id + 0,
@@ -573,12 +573,12 @@ class BrdUnitBase(unittest.TestCase):
                      'Fingerprint': 'b145bb8710c9b6624bb46631eecc3bbcc335d0ab', 
                      'Name': 'BunchOfCs.txt' }
 
-        table_data['roots'][rootName]['children'][ tmp_file['Name'] ] = tmp_file
+        table_data['roots'][root_name]['children'][ tmp_file['Name'] ] = tmp_file
 
         return table_data
     
     def get_schema_3(self, last_modified=None, last_checked=None, 
-                     rootName='rootD', first_file_id=16, first_dir_id=16):
+                     root_name='rootD', first_file_id=16, first_dir_id=16):
         """Builds and returns a table_data object for general test.
         """
         table_data = { 'roots': dict(), 'Name': 'test_tree' }
@@ -610,7 +610,7 @@ class BrdUnitBase(unittest.TestCase):
         
         tmp_dir = { 'Path_ID': first_dir_id + 0, 'Parent_ID': -1, 
                     'LastChecked': last_checked,
-                    'Name': rootName, 'children': { tmp_dir['Name'] : tmp_dir }
+                    'Name': root_name, 'children': { tmp_dir['Name'] : tmp_dir }
                     }
         
         table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
@@ -634,7 +634,7 @@ class BrdUnitBase(unittest.TestCase):
                      'Name': 'BunchOfBs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
         
-        table_data['roots'][rootName]['children'][ tmp_dir['Name'] ] = tmp_dir
+        table_data['roots'][root_name]['children'][ tmp_dir['Name'] ] = tmp_dir
 
         tmp_file = { 'contents': 'h'*256, 'File_ID': first_file_id + 0, 
                      'Parent_ID': first_dir_id + 0,
@@ -642,12 +642,12 @@ class BrdUnitBase(unittest.TestCase):
                      'Fingerprint': 'a8ae4254b998ecafdc841ebf0fd13da3baab49f7', 
                      'Name': 'BunchOfCs.txt' }
 
-        table_data['roots'][rootName]['children'][ tmp_file['Name'] ] = tmp_file
+        table_data['roots'][root_name]['children'][ tmp_file['Name'] ] = tmp_file
 
         return table_data
     
     def get_schema_4(self, last_modified=None, last_checked=None,
-                     rootName='rootB', first_file_id=6, first_dir_id=6):
+                     root_name='rootB', first_file_id=6, first_dir_id=6):
 
         """Builds and returns a table_data object for general test.
         """
@@ -681,7 +681,7 @@ class BrdUnitBase(unittest.TestCase):
         
         tmp_dir = { 'Path_ID': first_file_id + 0, 
                     'Parent_ID': -1, 'LastChecked': last_checked,
-                    'Name': rootName, 'children': { tmp_dir['Name'] : tmp_dir }
+                    'Name': root_name, 'children': { tmp_dir['Name'] : tmp_dir }
                     }
         
         table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
@@ -705,7 +705,7 @@ class BrdUnitBase(unittest.TestCase):
                      'Name': 'BunchOfEs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
         
-        table_data['roots'][rootName]['children'][ tmp_dir['Name'] ] = tmp_dir
+        table_data['roots'][root_name]['children'][ tmp_dir['Name'] ] = tmp_dir
 
         tmp_file = { 'contents': 'c'*256, 'File_ID': first_file_id + 0, 
                      'Parent_ID': first_dir_id + 0,
@@ -713,12 +713,12 @@ class BrdUnitBase(unittest.TestCase):
                      'Fingerprint': 'b145bb8710c9b6624bb46631eecc3bbcc335d0ab', 
                      'Name': 'BunchOfFs.txt' }
 
-        table_data['roots'][rootName]['children'][ tmp_file['Name'] ] = tmp_file
+        table_data['roots'][root_name]['children'][ tmp_file['Name'] ] = tmp_file
 
         return table_data
     
     def get_schema_5(self, last_modified=None, last_checked=None, 
-                     rootName='rootA', first_file_id=1, first_dir_id=1):
+                     root_name='rootA', first_file_id=1, first_dir_id=1):
         """Builds and returns a table_data object for general test.
         """
         # Schema similar to schema 1 but with different file contents.
@@ -751,7 +751,7 @@ class BrdUnitBase(unittest.TestCase):
         
         tmp_dir = { 'Path_ID': first_dir_id + 0, 'Parent_ID': -1, 
                     'LastChecked': last_checked,
-                    'Name': rootName, 'children': { tmp_dir['Name'] : tmp_dir }
+                    'Name': root_name, 'children': { tmp_dir['Name'] : tmp_dir }
                     }
         
         table_data['roots'][ tmp_dir['Name'] ] = tmp_dir
@@ -775,7 +775,7 @@ class BrdUnitBase(unittest.TestCase):
                      'Name': 'BunchOfBs.txt' }
         tmp_dir['children'][ tmp_file['Name'] ] = tmp_file
         
-        table_data['roots'][rootName]['children'][ tmp_dir['Name'] ] = tmp_dir
+        table_data['roots'][root_name]['children'][ tmp_dir['Name'] ] = tmp_dir
 
         tmp_file = { 'contents': 'h'*256, 'File_ID': first_file_id + 0, 
                      'Parent_ID': first_dir_id + 0,
@@ -783,7 +783,7 @@ class BrdUnitBase(unittest.TestCase):
                      'Fingerprint': 'a8ae4254b998ecafdc841ebf0fd13da3baab49f7', 
                      'Name': 'BunchOfCs.txt' }
 
-        table_data['roots'][rootName]['children'][ tmp_file['Name'] ] = tmp_file
+        table_data['roots'][root_name]['children'][ tmp_file['Name'] ] = tmp_file
 
         return table_data
     

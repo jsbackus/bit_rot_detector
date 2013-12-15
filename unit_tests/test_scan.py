@@ -40,8 +40,9 @@ class TestScan(BrdUnitBase):
         self.build_tree( exp_data )
 
         # Check targets
+        target_name = os.path.join('test_tree', 'rootA')
         scr_out = subprocess.check_output([self.script_name, 'scan',
-                                           'test_tree/rootA'],
+                                           target_name],
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
@@ -57,9 +58,10 @@ class TestScan(BrdUnitBase):
                                                 "Parent_ID","Path_ID"])
         got_data = self.strip_fields(got_data, ["contents","File_ID",
                                                 "Parent_ID","Path_ID"])
-        got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
+        target_name = os.path.join('test_tree', 'rootA')
+        got_data['roots'][target_name]['Name'] = 'rootA'
         results = self.diff_trees( exp_data['roots']['rootA'], 
-                                   got_data['roots']['test_tree/rootA'] )
+                                   got_data['roots'][target_name] )
 
         # Verify results 
         self.assertEqual( results['left'], None )
@@ -85,8 +87,9 @@ class TestScan(BrdUnitBase):
         self.conn.close()
 
         # Check targets
+        target_name = os.path.join('test_tree', 'rootA')
         scr_out = subprocess.check_output([self.script_name, 'scan',
-                                           'test_tree/rootA'],
+                                           target_name],
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
@@ -102,9 +105,9 @@ class TestScan(BrdUnitBase):
                                                 "Parent_ID","Path_ID"])
         got_data = self.strip_fields(got_data, ["contents","File_ID",
                                                 "Parent_ID","Path_ID"])
-        got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
+        got_data['roots'][target_name]['Name'] = 'rootA'
         results = self.diff_trees( exp_data['roots']['rootA'], 
-                                   got_data['roots']['test_tree/rootA'] )
+                                   got_data['roots'][target_name] )
 
         # Verify results 
         self.assertEqual( results['left'], None )
@@ -123,8 +126,9 @@ class TestScan(BrdUnitBase):
         mod_time = mod_time - datetime.timedelta(days=30)
 
         # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
         self.populate_db_from_tree( self.get_schema_5( mod_time, mod_time, 
-                                                       'test_tree/rootA' ) )
+                                                       target_name ) )
         self.conn.close()
 
         # Populate filesystem with schema 1, modified recently
@@ -133,7 +137,7 @@ class TestScan(BrdUnitBase):
 
         # Check targets
         scr_out = subprocess.check_output([self.script_name, 'scan',
-                                           'test_tree/rootA'],
+                                           target_name],
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
@@ -151,7 +155,7 @@ class TestScan(BrdUnitBase):
                                                 "Parent_ID","Path_ID"])
         got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
         results = self.diff_trees( exp_data['roots']['rootA'], 
-                                   got_data['roots']['test_tree/rootA'] )
+                                   got_data['roots'][target_name] )
 
         # Verify results 
         self.assertEqual( results['left'], None )
@@ -170,7 +174,8 @@ class TestScan(BrdUnitBase):
         mod_time = mod_time - datetime.timedelta(days=30)
 
         # Populate the database with schema 5, modified 1 month ago.
-        exp_data = self.get_schema_5( mod_time, mod_time, 'test_tree/rootA' ) 
+        root_name = os.path.join('test_tree', 'rootA')
+        exp_data = self.get_schema_5( mod_time, mod_time, root_name ) 
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -179,12 +184,13 @@ class TestScan(BrdUnitBase):
         self.build_tree( post_data )
 
         # Replce rootA/TreeA in expected data with changed subtree
-        exp_data['roots']['test_tree/rootA']['children']['TreeA'] = \
+        exp_data['roots'][root_name]['children']['TreeA'] = \
             post_data['roots']['rootA']['children']['TreeA']
 
         # Check targets
+        target_name = os.path.join('test_tree', 'rootA', 'TreeA')
         scr_out = subprocess.check_output([self.script_name, 'scan',
-                                           'test_tree/rootA/TreeA'],
+                                           target_name],
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
@@ -200,8 +206,8 @@ class TestScan(BrdUnitBase):
                                                 "Parent_ID","Path_ID"])
         got_data = self.strip_fields(got_data, ["contents","File_ID",
                                                 "Parent_ID","Path_ID"])
-        results = self.diff_trees( exp_data['roots']['test_tree/rootA'], 
-                                   got_data['roots']['test_tree/rootA'] )
+        results = self.diff_trees( exp_data['roots'][root_name], 
+                                   got_data['roots'][root_name] )
 
         # Verify results 
         self.assertEqual( results['left'], None )
@@ -216,22 +222,23 @@ class TestScan(BrdUnitBase):
         check_time = mod_time
 
         # Build schema 1 and add to expect data
+        rootA_name = os.path.join('test_tree', 'rootA')
         exp_data = { 'roots': dict(), 'Name': '' }
         tmp_schema = self.get_schema_1( mod_time, check_time )
         self.build_tree( tmp_schema )
-        exp_data['roots']['test_tree/rootA'] = tmp_schema['roots']['rootA']
+        exp_data['roots'][rootA_name] = tmp_schema['roots']['rootA']
 
         # Build another schema 1 with a different root and add to expect data
         tmp_schema = self.get_schema_1( mod_time, check_time, 
-                                        rootName = 'rootB', first_file_id=6,
+                                        root_name = 'rootB', first_file_id=6,
                                         first_dir_id=6)
         self.build_tree( tmp_schema )
-        exp_data['roots']['test_tree/rootB'] = tmp_schema['roots']['rootB']
+        rootB_name = os.path.join('test_tree', 'rootB')
+        exp_data['roots'][rootB_name] = tmp_schema['roots']['rootB']
 
         # Check targets
         scr_out = subprocess.check_output([self.script_name, 'scan',
-                                           'test_tree/rootA', 
-                                           'test_tree/rootB'],
+                                           rootA_name, rootB_name],
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
 
@@ -247,8 +254,8 @@ class TestScan(BrdUnitBase):
                                                 "Parent_ID","Path_ID"])
         got_data = self.strip_fields(got_data, ["contents","File_ID",
                                                 "Parent_ID","Path_ID"])
-        exp_data['roots']['test_tree/rootA']['Name'] = 'test_tree/rootA'
-        exp_data['roots']['test_tree/rootB']['Name'] = 'test_tree/rootB'
+        exp_data['roots'][rootA_name]['Name'] = rootA_name
+        exp_data['roots'][rootB_name]['Name'] = rootB_name
         results = self.diff_trees( exp_data['roots'], 
                                    got_data['roots'] )
 
@@ -257,6 +264,59 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
 
+    def test_root_prefix(self):
+        """Tests scan subcommand with --root-prefix option.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
+        # Build tree with schema 1
+        schema_data = self.get_schema_1( mod_time, check_time )
+        self.build_tree( schema_data )
+
+        # Update root name
+        root_name = os.path.join('myTestPrefix', 'test_tree', 'rootA')
+        exp_data = { 'Name': '', 
+                     'roots': { root_name: schema_data['roots']['rootA'] } }
+        exp_data['roots'][root_name]['Name'] = root_name
+
+        # Populate the database with schema 1.
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Check targets
+        target_name = os.path.join('test_tree', 'rootA')
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           '--root-prefix', 'myTestPrefix',
+                                           target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        results = self.diff_trees( exp_data['roots'][root_name], 
+                                   got_data['roots'][root_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
+        
 # Allow unit test to run on its own
 if __name__ == '__main__':
     unittest.main()
