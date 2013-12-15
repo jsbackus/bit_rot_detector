@@ -111,6 +111,53 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
         
+    def test_changed_root(self):
+        """Tests scan subcommand with an existing, changed root.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=30)
+
+        # Populate the database with schema 1, modified 1 month ago.
+        self.populate_db_from_tree( self.get_schema_1( mod_time, mod_time ) )
+        self.conn.close()
+
+        # Populate filesystem with schema 3, modified recently
+        exp_data = self.get_schema_1( check_time, check_time )
+        self.build_tree( exp_data )
+
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           'test_tree/rootA'],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots']['test_tree/rootA'] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
     # def test_dissimilar_trees(self):
     #     """Tests scan subcommand with dissimilar trees.
     #     """
