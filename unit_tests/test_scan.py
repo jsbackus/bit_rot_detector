@@ -208,6 +208,59 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
         
+    def test_multiple_roots(self):
+        """Tests scan subcommand with multiple new roots.
+        """
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
+        # Build schema 1 and add to expect data
+        exp_data = { 'roots': dict(), 'Name': '' }
+        tmp_schema = self.get_schema_1( mod_time, check_time )
+        self.build_tree( tmp_schema )
+        exp_data['roots']['test_tree/rootA'] = tmp_schema['roots']['rootA']
+
+        # Build schema 3 and add to expect data
+        tmp_schema = self.get_schema_3( mod_time, check_time, 
+                                        rootName = 'rootB', first_file_id=6,
+                                        first_dir_id=6)
+        self.build_tree( tmp_schema )
+        exp_data['roots']['test_tree/rootB'] = tmp_schema['roots']['rootB']
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           'test_tree/rootA', 
+                                           'test_tree/rootB'],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        exp_data['roots']['test_tree/rootA']['Name'] = 'test_tree/rootA'
+        exp_data['roots']['test_tree/rootB']['Name'] = 'test_tree/rootB'
+        results = self.diff_trees( exp_data['roots'], 
+                                   got_data['roots'] )
+
+        print('Common:' +str(results['common']))
+        print('Left:' +str(results['left']))
+        print('Right:' +str(results['right']))
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+
 # Allow unit test to run on its own
 if __name__ == '__main__':
     unittest.main()

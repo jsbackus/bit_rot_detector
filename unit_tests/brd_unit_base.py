@@ -403,10 +403,11 @@ class BrdUnitBase(unittest.TestCase):
         if len( parent ) <= 0:
             # Top level. Create a directory with the name in 'name' then
             # recursively process roots.
-            if os.path.exists( tree_data['Name'] ):
-                self.del_tree( tree_data['Name'] )
+#            if os.path.exists( tree_data['Name'] ):
+#                self.del_tree( tree_data['Name'] )
 
-            os.mkdir( tree_data['Name'] )
+            if not os.path.exists( tree_data['Name'] ):
+                os.mkdir( tree_data['Name'] )
             for subtree in tree_data['roots'].keys():
                 self.build_tree( tree_data['roots'][subtree], 
                                  tree_data['Name'] )
