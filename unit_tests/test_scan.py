@@ -28,8 +28,9 @@ class TestScan(BrdUnitBase):
         """Tests scan subcommand with a single new root.
         """
 
-        mod_time = int(time.time())
+        mod_time = time.time() #int(time.time())
         check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = check_time
 
         # Build tree with schema 1
         exp_data = self.get_schema_1( mod_time, check_time )
@@ -48,16 +49,16 @@ class TestScan(BrdUnitBase):
         got_data = self.build_tree_data_from_db( self.conn.cursor() )
         self.conn.close()
 
-        # Tweak root of expect data and then make sure they're the same
-        tmp_data = exp_data['roots']['rootA']
-        del(exp_data['roots']['rootA'])
-        exp_data['roots']['test_tree/rootA'] = tmp_data
-        results = self.diff_trees( exp_data, got_data )
-        print(str(results))
+        # Remove contents fields and compare
+        exp_data = self.strip_fields(exp_data, "contents")
+        got_data = self.strip_fields(got_data, "contents")
+        got_data['roots']['test_tree/rootA']['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots']['test_tree/rootA'] )
 
         # Verify results 
-        self.assertEqual( len(results['left']), 0 )
-        self.assertEqual( len(results['right']), 0 )
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
         
     # def test_dissimilar_trees(self):

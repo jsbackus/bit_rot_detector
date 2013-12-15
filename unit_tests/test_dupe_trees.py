@@ -28,11 +28,11 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with identical trees.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = \
             ['2 dirs with Fingerprint ' +
-             '0x4c02e31639d05130158e820ea66dd9b87bd385b1:',
+             '0xcab2b4fe2092da433a269238f82810b803c60917:',
              '    [rootB]', '    [rootA]', '']
 
         # Call open_db, which should create db and its tables
@@ -40,10 +40,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Append another schema 1 with a new root name
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time, 
+            self.get_schema_1( mod_time, check_time, 
                                rootName = 'rootB', first_file_id=6,
                                first_dir_id=6) )
         self.conn.close()
@@ -64,8 +64,8 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with dissimilar trees.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ['']
 
         # Call open_db, which should create db and its tables
@@ -73,10 +73,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1.
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Populate the database with schema 3.
         self.populate_db_from_tree( 
-            self.get_schema_3( str(mod_time), check_time ) )
+            self.get_schema_3( mod_time, check_time ) )
         self.conn.close()
 
         # Check targets
@@ -95,12 +95,12 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with --output option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         out_file = 'test_output.txt'
         exp_out = \
             ['2 dirs with Fingerprint ' +
-             '0x4c02e31639d05130158e820ea66dd9b87bd385b1:\n',
+             '0xcab2b4fe2092da433a269238f82810b803c60917:\n',
              '    [rootB]\n', '    [rootA]\n']
 
         # Call open_db, which should create db and its tables
@@ -108,10 +108,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Append another schema 1 with a new root name
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time, 
+            self.get_schema_1( mod_time, check_time, 
                                rootName = 'rootB', first_file_id=6,
                                first_dir_id=6) )
         self.conn.close()
@@ -158,8 +158,8 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with --nofilefp option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         check_out = ['']
         exp_out = ['2 dirs with Fingerprint ' + 
                    '0x9ba569116eee959eae815d7c3d1f2bf81e518526:',
@@ -170,10 +170,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1.
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Populate the database with schema 3.
         self.populate_db_from_tree( 
-            self.get_schema_3( str(mod_time), check_time ) )
+            self.get_schema_3( mod_time, check_time ) )
         self.conn.close()
 
         # Check targets normally.
@@ -205,11 +205,11 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with --nofilename option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         check_out = ['']
         exp_out = ['2 dirs with Fingerprint ' + 
-                   '0x24c3d1d9c9c6c8303b19cc1a2def771a6e787b4d:',
+                   '0xe3405cd476f42e59b326abed4daa92f7dc220b42:',
                    '    [rootA]', '    [rootB]', '']
 
         # Call open_db, which should create db and its tables
@@ -217,10 +217,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Populate the database with schema 4
         self.populate_db_from_tree( 
-            self.get_schema_4( str(mod_time), check_time ) )
+            self.get_schema_4( mod_time, check_time ) )
         self.conn.close()
 
         # Check targets normally.
@@ -252,8 +252,8 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with --nosubdirfp option
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         check_out = ['']
         exp_out = ['2 dirs with Fingerprint ' +
                      '0xa937d97faf45931eeb5690804c2d26d519c06cf9:', 
@@ -265,10 +265,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1.
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Populate the database with schema 3.
         self.populate_db_from_tree( 
-            self.get_schema_3( str(mod_time), check_time ) )
+            self.get_schema_3( mod_time, check_time ) )
         self.conn.close()
 
         # Check targets normally.
@@ -300,8 +300,8 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with --nosubdirname option
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         check_out = ['4 dirs with Fingerprint ' + 
                    '0x183831bb75375e5a0fdd885c3b4425472519b7e9:', 
                    '    [rootA]/LeafB', 
@@ -309,7 +309,7 @@ class TestDupeTrees(BrdUnitBase):
                    '    [rootA]/TreeA/DirA/LeafA', 
                    '    [rootB]/LeafE', '']
         exp_out = ['2 dirs with Fingerprint ' +
-                   '0x6a9ccb186411173dd33d8ad97c476efe70ff36d7:', 
+                   '0x1c2531f369ffdabf217641a9ffc4694bbe58b3e9:', 
                    '    [rootB]', 
                    '    [rootA]'] + check_out 
 
@@ -318,10 +318,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1.
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Populate the database with schema 2.
         self.populate_db_from_tree( 
-            self.get_schema_2( str(mod_time), check_time ) )
+            self.get_schema_2( mod_time, check_time ) )
         self.conn.close()
 
         # Check targets with just --nodirname.
@@ -354,14 +354,14 @@ class TestDupeTrees(BrdUnitBase):
         """Tests dupe_trees subcommand with --nodirname option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         check_out = ['2 dirs with Fingerprint '+
-                     '0x4c02e31639d05130158e820ea66dd9b87bd385b1:',
+                     '0xcab2b4fe2092da433a269238f82810b803c60917:',
                      '    [rootB]', '    [rootA]', '']
 
         exp_out = ['2 dirs with Fingerprint ' +
-                   '0x85f1d8f066c57b7650d1733f40b23fa7597df836:', 
+                   '0x130563c2a00cfbb70e9abc1042b02e25a10b9c31:', 
                    '    [rootB]', '    [rootA]', 
                    '4 dirs with Fingerprint ' +
                    '0x183831bb75375e5a0fdd885c3b4425472519b7e9:', 
@@ -374,10 +374,10 @@ class TestDupeTrees(BrdUnitBase):
 
         # Populate the database with schema 1
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Append another schema 1 with a new root name
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time, 
+            self.get_schema_1( mod_time, check_time, 
                                rootName = 'rootB', first_file_id=6,
                                first_dir_id=6) )
         self.conn.close()

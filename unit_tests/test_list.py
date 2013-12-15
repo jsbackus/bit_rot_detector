@@ -28,9 +28,9 @@ class TestList(BrdUnitBase):
         """Tests list subcommand with one directory target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
-        exp_out = os.linesep.join( ( 'rootA:', '    LeafB/', '    TreeA/',
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        exp_out = os.linesep.join( ( 'rootA:', '    TreeA/', '    LeafB/',
                                      '    BunchOfCs.txt', '',
                                      '3 entries listed.', '', '' ) )
 
@@ -52,14 +52,13 @@ class TestList(BrdUnitBase):
         """Tests list subcommand with one file target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = os.linesep.join( ( "Files matching 'rootA/BunchOfCs.txt':",
                                      '', 'BunchOfCs.txt:', '    ID: 1',
-                                     '    Last Modified: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
-                                     '    Fingerprint: 0xff3785f53b503b7adb7e' +
-                                     '7a3b9eeef255eac0e276',
+                                     '    Last Modified: ' + str( mod_time ),
+                                     '    Fingerprint: 0x' +
+                                     'b145bb8710c9b6624bb46631eecc3bbcc335d0ab',
                                      '    Size: 257 bytes', '',
                                      '1 entries listed.', '', '' ) )
 
@@ -81,18 +80,17 @@ class TestList(BrdUnitBase):
         """Tests list subcommand with multiple targets.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = os.linesep.join( ( "Files matching 'rootA/BunchOfCs.txt':",
                                      '', 'BunchOfCs.txt:', '    ID: 1',
-                                     '    Last Modified: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
-                                     '    Fingerprint: 0xff3785f53b503b7adb7e' +
-                                     '7a3b9eeef255eac0e276',
+                                     '    Last Modified: ' + str( mod_time ),
+                                     '    Fingerprint: 0x' +
+                                     'b145bb8710c9b6624bb46631eecc3bbcc335d0ab',
                                      '    Size: 257 bytes', '',
                                      '1 entries listed.', '', 
-                                     'rootA/LeafB:', '    BunchOfAs.txt', 
-                                     '    BunchOfBs.txt', '', 
+                                     'rootA/LeafB:','    BunchOfBs.txt',
+                                     '    BunchOfAs.txt', '', 
                                      '2 entries listed.', '', '' ) )
 
         # Call open_db, which should create db and its tables
@@ -114,8 +112,8 @@ class TestList(BrdUnitBase):
         """Tests list subcommand with an invalid target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = os.linesep.join( ( 'rootA/BunchOfDs.txt is not in database.',
                                      '', '' ) )
 
@@ -137,20 +135,18 @@ class TestList(BrdUnitBase):
         """Tests list subcommand with multiple file targets, using wildcards.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
-        exp_out = os.linesep.join( ( "Files matching 'rootA/LeafB/*.txt':",
-                                     '', 'BunchOfAs.txt:', '    ID: 4',
-                                     '    Last Modified: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
-                                     '    Fingerprint: 0x1a0372738bb5b4b8360b' +
-                                     '47c4504a27e6f4811493',
-                                     '    Size: 257 bytes', 
-                                     'BunchOfBs.txt:', '    ID: 5',
-                                     '    Last Modified: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        exp_out = os.linesep.join( ( "Files matching 'rootA/LeafB/*.txt':", '',
+                                     'BunchOfBs.txt:', '    ID: 2',
+                                     '    Last Modified: ' + str( mod_time ),
                                      '    Fingerprint: 0xfa75bf047f45891daee8' +
                                      'f1fa4cd2bf58876770a5',
+                                     '    Size: 257 bytes', 
+                                     'BunchOfAs.txt:', '    ID: 3',
+                                     '    Last Modified: ' + str( mod_time ),
+                                     '    Fingerprint: 0x1a0372738bb5b4b8360b' +
+                                     '47c4504a27e6f4811493',
                                      '    Size: 257 bytes', '',
                                      '2 entries listed.', '', '' ) )
 
@@ -173,14 +169,13 @@ class TestList(BrdUnitBase):
         """Tests list subcommand with one file target and the --use-root option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = os.linesep.join( ( "Files matching 'my_temp/BunchOfCs.txt':", 
                                      '', 'BunchOfCs.txt:', '    ID: 1',
-                                     '    Last Modified: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
-                                     '    Fingerprint: 0xff3785f53b503b7adb7e' +
-                                     '7a3b9eeef255eac0e276',
+                                     '    Last Modified: ' + str( mod_time ),
+                                     '    Fingerprint: 0x' +
+                                     'b145bb8710c9b6624bb46631eecc3bbcc335d0ab',
                                      '    Size: 257 bytes', '',
                                      '1 entries listed.', '', '' ) )
 
@@ -204,14 +199,13 @@ class TestList(BrdUnitBase):
         option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = os.linesep.join( ( "Files matching 'BunchOfCs.txt':", 
                                      '', 'BunchOfCs.txt:', '    ID: 1',
-                                     '    Last Modified: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
-                                     '    Fingerprint: 0xff3785f53b503b7adb7e' +
-                                     '7a3b9eeef255eac0e276',
+                                     '    Last Modified: ' + str( mod_time ),
+                                     '    Fingerprint: 0x' +
+                                     'b145bb8710c9b6624bb46631eecc3bbcc335d0ab',
                                      '    Size: 257 bytes', '',
                                      '1 entries listed.', '', '' ) )
 
@@ -234,9 +228,9 @@ class TestList(BrdUnitBase):
         """Tests list subcommand --minimal option
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
-        exp_out = os.linesep.join( ( 'LeafB/', 'TreeA/', 'BunchOfCs.txt', '' ) )
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        exp_out = os.linesep.join( ( 'TreeA/', 'LeafB/', 'BunchOfCs.txt', '' ) )
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
@@ -263,15 +257,14 @@ class TestList(BrdUnitBase):
         """Tests list subcommand --expanded option
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = os.linesep.join( ( 'rootA:', '    [INFO]', '        ID: 1',
                                      '        Parent ID: -1', 
-                                     '        Last Checked: ' + str(
-                    datetime.datetime.fromtimestamp(mod_time) ),
+                                     '        Last Checked: ' + str( mod_time ),
                                      '    [Subdirectories]',
-                                     '        LeafB/ (2)',
-                                     '        TreeA/ (3)',
+                                     '        TreeA/ (2)',
+                                     '        LeafB/ (3)',
                                      '    [Files]', '        BunchOfCs.txt (1)',
                                      '', '3 entries listed.', '', '' ) )
 

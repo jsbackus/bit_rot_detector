@@ -28,14 +28,14 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with one directory target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -62,7 +62,7 @@ class TestRm(BrdUnitBase):
         del(cur_data['Name'])
 
         diff_results = self.diff_trees( exp_data, cur_data)
-        
+
         # Verify results
         self.assertEqual( diff_results['left'], None)
         self.assertEqual( diff_results['right'], None)
@@ -72,14 +72,14 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with one file target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -117,17 +117,18 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with one root target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
 
         # Append another schema 1 with a new root name
-        tmp_schema = self.get_schema_1( str(mod_time), check_time, 
+        tmp_schema = self.get_schema_1( mod_time, check_time, 
                                         rootName = 'rootB', first_file_id=6,
                                         first_dir_id=6)
         exp_data['roots']['rootB'] = tmp_schema['roots']['rootB']
@@ -168,14 +169,15 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with multiple targets.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -216,14 +218,15 @@ class TestRm(BrdUnitBase):
         option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -262,14 +265,15 @@ class TestRm(BrdUnitBase):
         option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -307,14 +311,15 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with --dry-run option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -348,15 +353,16 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with an invalid target.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+
         exp_out = "Target 'rootB/TreeA' not in database."
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -391,14 +397,14 @@ class TestRm(BrdUnitBase):
         """Tests rm subcommand with wildcards.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 

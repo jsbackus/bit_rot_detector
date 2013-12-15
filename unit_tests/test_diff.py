@@ -28,8 +28,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with identical trees.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ''
 
         # Call open_db, which should create db and its tables
@@ -37,10 +37,10 @@ class TestDiff(BrdUnitBase):
 
         # Populate the database with schema 1
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time ) )
+            self.get_schema_1( mod_time, check_time ) )
         # Append another schema 1 with a new root name
         self.populate_db_from_tree( 
-            self.get_schema_1( str(mod_time), check_time, 
+            self.get_schema_1( mod_time, check_time, 
                                rootName = 'rootB', first_file_id=6,
                                first_dir_id=6) )
         self.conn.close()
@@ -58,15 +58,15 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with identical files.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ''
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -84,8 +84,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with file and directory.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = 'rootA/TreeA/DirA/LeafA/BunchOfAs.txt is a file.\n' + \
             'rootA/LeafB is a directory.\n'
 
@@ -93,7 +93,7 @@ class TestDiff(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -111,8 +111,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with two dissimilar trees.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ['Only in rootA/LeafB: BunchOfAs.txt',
                    'Only in rootA/LeafB: BunchOfBs.txt',
                    'Only in rootA/TreeA: DirA', '']
@@ -121,7 +121,7 @@ class TestDiff(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -141,8 +141,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with --output option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         out_file = 'test_output.txt'
         exp_out = ['Only in rootA/LeafB: BunchOfAs.txt\n',
                    'Only in rootA/LeafB: BunchOfBs.txt\n',
@@ -152,7 +152,7 @@ class TestDiff(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -198,8 +198,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with --root-prefix option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ['Only in LeafB: BunchOfAs.txt',
                    'Only in LeafB: BunchOfBs.txt',
                    'Only in TreeA: DirA', '']
@@ -208,7 +208,7 @@ class TestDiff(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -229,8 +229,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with --use-root option.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ['Only in my_temp/LeafB: BunchOfAs.txt',
                    'Only in my_temp/LeafB: BunchOfBs.txt',
                    'Only in my_temp/TreeA: DirA', '']
@@ -239,7 +239,7 @@ class TestDiff(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -261,15 +261,15 @@ class TestDiff(BrdUnitBase):
         target on right.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ["'rootA/TreeB' not in database!"]
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -295,15 +295,15 @@ class TestDiff(BrdUnitBase):
         target on right.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ["'rootA/LeafA' not in database!"]
 
         # Call open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -328,8 +328,8 @@ class TestDiff(BrdUnitBase):
         """Tests diff subcommand with two invalid targets.
         """
 
-        mod_time = int(time.time())
-        check_time = datetime.datetime.fromtimestamp(mod_time)
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
         exp_out = ["'rootA/TreeB' not in database!",
                    "'rootA/LeafA' not in database!"]
 
@@ -337,7 +337,7 @@ class TestDiff(BrdUnitBase):
         self.open_db( self.default_db, False )
 
         # Populate the database with schema 1.
-        exp_data = self.get_schema_1( str(mod_time), check_time )
+        exp_data = self.get_schema_1( mod_time, check_time )
         self.populate_db_from_tree( exp_data )
         self.conn.close()
 
@@ -369,7 +369,7 @@ class TestDiff(BrdUnitBase):
     #     self.open_db( self.default_db, False )
 
     #     # Populate the database with schema 1.
-    #     exp_data = self.get_schema_1( str(mod_time), check_time )
+    #     exp_data = self.get_schema_1( mod_time, check_time )
     #     self.populate_db_from_tree( exp_data )
     #     self.conn.close()
 
