@@ -162,6 +162,79 @@ class TestScan(BrdUnitBase):
         self.assertEqual( results['right'], None )
         self.assertNotEqual( len(results['common']), 0 )
         
+    def test_corrupted_root(self):
+        """Tests scan subcommand with an existing root with corrupted files.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        exp_out = ["File 'test_tree/rootA/BunchOfCs.txt' does not match " +
+                   "fingerprint in database and is not newer. File could be " +
+                   "damaged!",
+                   "File 'test_tree/rootA/TreeA/DirA/LeafA/BunchOfAs.txt' " +
+                   "does not match fingerprint in database and is not newer. " +
+                   "File could be damaged!",
+                   "File 'test_tree/rootA/TreeA/DirA/LeafA/BunchOfBs.txt' " +
+                   "does not match fingerprint in database and is not newer. " +
+                   "File could be damaged!",
+                   "File 'test_tree/rootA/LeafB/BunchOfAs.txt' does not match" +
+                   " fingerprint in database and is not newer. File could be " +
+                   "damaged!",
+                   "File 'test_tree/rootA/LeafB/BunchOfBs.txt' does not match" +
+                   " fingerprint in database and is not newer. File could be " +
+                   "damaged!"]
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        exp_data = self.get_schema_5( mod_time, mod_time, target_name )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Populate filesystem with schema 1 with same modification time.
+        tmp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        self.build_tree( tmp_data )
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        scr_lines = list()
+        for line in scr_out.split('\n'):
+            warn_heading = 'WARNING] '
+            idx = line.find(warn_heading)
+            if 0 <= idx:
+                scr_lines.append( line[ idx + len(warn_heading): ] )
+            elif 0 < len(line):
+                scr_lines.append( line )
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        results = self.diff_trees( exp_data['roots'][target_name], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+        
     def test_existing_subtree(self):
         """Tests scan subcommand with an existing, changed subtree.
         """
@@ -535,7 +608,311 @@ class TestScan(BrdUnitBase):
         for exp_line in exp_out:
             self.assertTrue( exp_line in scr_lines )
         
+    def prune_helper_missing(self, option):
+        """Tests scan subcommand with the specified alias for prune option and
+        missing subdirectories.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=30)
+        exp_out = list()
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        tmp_data = self.get_schema_5( mod_time, mod_time, target_name )
+        self.populate_db_from_tree( tmp_data )
+        self.conn.close()
+
+        # Populate filesystem with a partial schema 1, modified recently
+        exp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        del(exp_data['roots']['rootA']['children']['LeafB'])
+        self.build_tree( exp_data )
+
+        # Check targets with --prune
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           option, target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+        scr_lines = list()
+        for line in scr_out.split('\n'):
+            warn_heading = 'WARNING] '
+            idx = line.find(warn_heading)
+            if 0 <= idx:
+                scr_lines.append( line[ idx + len(warn_heading): ] )
+            elif 0 < len(line):
+                scr_lines.append( line )
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents, LastChecked, and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID",
+                                                "LastChecked"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID",
+                                                "LastChecked"])
+        got_data['roots'][target_name]['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        self.assertEqual( len(scr_lines), len(exp_out) )
+        for exp_line in exp_out:
+            self.assertTrue( exp_line in scr_lines )
+
+    def test_prune_long_missing(self):
+        """Uses prune_helper_missing to test scan with the --prune option.
+        """
+        self.prune_helper_missing("--prune")
         
+    def test_prune_short_missing(self):
+        """Uses prune_helper_missing to test scan with the -p option.
+        """
+        self.prune_helper_missing("-p")
+        
+    def prune_helper_updated(self, option):
+        """Tests scan subcommand with the specified alias for prune option and
+        updated but not missing subdirectories.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=30)
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        self.populate_db_from_tree( self.get_schema_5( mod_time, mod_time, 
+                                                       target_name ) )
+        self.conn.close()
+
+        # Populate filesystem with schema 1, modified recently
+        exp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        self.build_tree( exp_data )
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan', option,
+                                           target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data['roots'][target_name]['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
+    def test_prune_long_updated(self):
+        """Uses prune_helper_updated to test scan with the --prune option.
+        """
+        self.prune_helper_updated("--prune")
+        
+    def test_prune_short_updated(self):
+        """Uses prune_helper_updated to test scan with the -p option.
+        """
+        self.prune_helper_updated("-p")
+        
+    def helper_skip_recent_with_recent(self, option):
+        """Tests scan subcommand with specified alias for --skip-recent option
+        and a tree that has been checked within default window.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=29)
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        exp_data = self.get_schema_5( mod_time, mod_time, target_name )
+        self.populate_db_from_tree( exp_data )
+        self.conn.close()
+
+        # Populate filesystem with schema 1, modified recently
+        tmp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        self.build_tree( tmp_data )
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           option, target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        results = self.diff_trees( exp_data['roots'][target_name], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
+    def helper_skip_recent_with_old(self, option):
+        """Tests scan subcommand with specified alias for --skip-recent option
+        and a tree that has been checked exactly default window days ago.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=30)
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        self.populate_db_from_tree( self.get_schema_5( mod_time, mod_time, 
+                                                       target_name ) )
+        self.conn.close()
+
+        # Populate filesystem with schema 1, modified recently
+        exp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        self.build_tree( exp_data )
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           option, target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data['roots'][target_name]['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+        
+    def test_skip_recent_long_with_recent(self):
+        """Tests long version of --skip-recent with recently scanned path.
+        """
+        self.helper_skip_recent_with_recent("--skip-recent")
+        
+    def test_skip_recent_short_with_recent(self):
+        """Tests short version of --skip-recent with recently scanned path.
+        """
+        self.helper_skip_recent_with_recent("-s")
+        
+    def test_skip_recent_long_with_old(self):
+        """Tests long version of --skip-recent with path last scanned outside of
+        window.
+        """
+        self.helper_skip_recent_with_old("--skip-recent")
+        
+    def test_skip_recent_short_with_old(self):
+        """Tests short version of --skip-recent with path last scanned outside 
+        of window.
+        """
+        self.helper_skip_recent_with_old("-s")
+        
+    def test_expr_option(self):
+        """Tests scan subcommand with --skip-recent option, --expr set to
+        something other than default, and a tree that has been checked exactly
+        default window days ago.
+        """
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        num_days = 29
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        mod_time = mod_time - datetime.timedelta(days=num_days)
+
+        # Populate the database with schema 5, modified 1 month ago.
+        target_name = os.path.join('test_tree', 'rootA')
+        self.populate_db_from_tree( self.get_schema_5( mod_time, mod_time, 
+                                                       target_name ) )
+        self.conn.close()
+
+        # Populate filesystem with schema 1, modified recently
+        exp_data = self.get_schema_1( check_time, check_time, 'rootA' )
+        self.build_tree( exp_data )
+
+        # Check targets
+        scr_out = subprocess.check_output([self.script_name, 'scan',
+                                           '--skip-recent', '--expr', 
+                                           str(num_days), target_name],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True)
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Get contents of database
+        got_data = self.build_tree_data_from_db( self.conn.cursor() )
+        self.conn.close()
+
+        # Remove contents and ID fields and compare
+        exp_data = self.strip_fields(exp_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data = self.strip_fields(got_data, ["contents","File_ID",
+                                                "Parent_ID","Path_ID"])
+        got_data['roots'][target_name]['Name'] = 'rootA'
+        results = self.diff_trees( exp_data['roots']['rootA'], 
+                                   got_data['roots'][target_name] )
+
+        # Verify results 
+        self.assertEqual( results['left'], None )
+        self.assertEqual( results['right'], None )
+        self.assertNotEqual( len(results['common']), 0 )
+
 # Allow unit test to run on its own
 if __name__ == '__main__':
     unittest.main()
