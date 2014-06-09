@@ -1,0 +1,165 @@
+.\" Please send any bug reports, improvements, comments, patches, 
+.\" etc. to Jeff Backus <jeff.backus@gmail.com>.
+.TH "BRD" "1" "28 May 2014" "Jeff Backus"
+.SH NAME
+brd \- Bit Rot Detector
+.SH SYNOPSIS
+.SS "SCANNING DIRECTORIES:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBscan\fR [\fBscan-options\fR] \fBtarget\fR [\fBtarget ...\fR]
+
+.SS "PROBING THE DATABASE:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBlist\fR [\fBlist-options\fR] \fBtarget\fR [\fBtarget ...\fR]
+
+.SS "SEARCHING FOR DUPLICATE FILES:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBdupe_files\fR [\fBdupe_files-options\fR]
+
+.SS "SEARCHING FOR DUPLICATE TREES:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBdupe_trees\fR [\fBdupe_trees-options\fR]
+
+.SS "DIFFING TREES:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBdiff\fR [\fBdiff-options\fR] \fBleft-target\fR \fBright-target\fR
+
+.SS "REMOVING ITEMS FROM THE DATABASE:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBrm\fR [\fBrm-options\fR] \fBtarget\fR [\fBtarget ...\fR]
+
+.SS "CHECKING THE DATABASE:"
+.PP
+
+\fBbrd\fR [\fBgeneral-options\fR] \fBcheckdb\fR [\fBcheckdb-options\fR]
+
+.SS "general-options"
+.PP
+
+ [\fB-h\fR] [\fB--version\fR] [\fB-l,--log [\fIFILENAME\fR]\fR] 
+ [\fB-v,--verbose\fR] [\fB-d,--debug\fR] [\fB--db [\fIFILENAME\fR]\fR] 
+
+.SS "scan-options"
+.PP
+
+ [\fB-h\fR] [\fB--use-root [\fIROOT NAME\fR]\fR] 
+ [\fB--root-prefix [\fIPREFIX\fR]\fR]\fR] [\fB-p,--prune\fR] 
+ [\fB-P,--progress\fR] [\fB--check-only\fR] [\fB--dry-run\fR]
+ [\fB-s,--skip-recent\fR] [\fB--expr [\fIDAYS\fR]\fR]
+
+.SS "list-options"
+.PP
+
+ [\fB-h\fR] [\fB--use-root [\fIROOT NAME\fR]\fR] [\fB-m,--minimal\fR]
+ [\fB--root-prefix [\fIPREFIX\fR]\fR]\fR] [\fB-e,--expanded\fR] 
+
+
+.SS "dupe_files-options"
+.PP
+
+ [\fB-h\fR] [\fB-o,--output [\fIFILENAME\fB]\fR]
+
+.SS "dupe_trees-options"
+.PP
+
+ [\fB-h\fR] [\fB-o,--output [\fIFILENAME\fB]\fR] [\fB--nofilefp\fR]
+ [\fB--nofilename\fR] [\fB--nosubdirfp\fR] [\fB--nosubdirname\fR]
+ [\fB--nodirname\fR]
+
+.SS "diff-options"
+.PP
+
+ [\fB-h\fR] [\fB-o,--output [\fIFILENAME\fB]\fR]
+ [\fB--use-root [\fIROOT NAME\fR]\fR]\fR] [\fB--root-prefix [\fIPREFIX\fR]\fR]
+
+.SS "rm-options"
+.PP
+
+ [\fB-h\fR] [\fB--use-root [\fIROOT NAME\fR]\fR]
+ [\fB--root-prefix [\fIPREFIX\fR]\fR]\fR] [\fB--dry-run\fR] 
+	
+.SS "checkdb-options"
+.PP
+
+ [\fB-h\fR] [\fB-P,--progress\fR] [\fB--check-only\fR] [\fB--dry-run\fR]
+
+.SH "DESCRIPTION"
+.PP
+bit_rot_detector, or \fBbrd\fR, is a tool to scan a directory tree and check each file
+for corruption caused by damage to the physical storage medium or by damage from
+malicious programs. Files are fingerprinted using the SHA-1 algorithm. File
+fingerprints, sizes, and modification times are stored in a SQLite database.
+
+Multiple unrelated directory trees can be stored in the same database. All
+trees are identified by the base directory, or root, as specified on the 
+command-line. Note that the following are considered different trees:
+    some_dir/
+    ./some_dir/
+
+Subtrees can be specified anywhere roots can as long as the full root to subtree
+path is specified. However, the subtree must already exist in the database. If
+the subtree is not currently in the database, it will be considered to be a
+new root. For example, the following will scan some_dir as a new root and add 
+all of its children to the database, then scan the subtree some_subtree for
+problems and/or changes:
+    # Add new root
+    brd scan some_dir
+    # Scan only part of a root for problems and changes.
+    brd scan some_dir/some_subtree
+
+Note: the default behavior for scan is to update the database for any files
+that are newer than the database record. Files that have been tampered with will
+likely be flagged as updated and not as damaged. To properly check for files
+that have been tampered with, run scan with the \fB--check-only\fR option.
+
+Since scanning large trees or trees with large files can take quite a while,
+it is possible to exclude files in directories that have recently been checked
+via the \fB-s\fR option. How recent is "recent" is controlled by the \fB--expr\fR option and
+defaults to 30 days.
+
+The integrity of the database can be checked via the \fBcheckdb\fR subcommand.
+
+In addition to checking files for corruption, brd provides the ability to search
+the database for duplicate files and subtrees, as well as diff subtrees.
+See the \fBdupe_files\fR, \fBdupe_trees\fR, and \fBdiff\fR subcommands for details.
+
+.SS "GENERAL OPTIONS"
+.PP
+These options can be used in all the different modes.
+.TP
+\fB-h, --help\fR
+Display the command-line help.
+.TP
+\fB--version\fR
+Displays script version number and quits.
+.TP
+\fB-l,--log \fIFILENAME\fB\fR
+Logs output to the specified file instead of the console.
+
+
+.\".SH "SEE ALSO"
+.\".nf
+.\"\fBdddd\fR(3),
+.\".fi
+
+
+\fBhttp://github.com/jsbackus/bit_rot_detector <URL:http://github.com/jsbackus/bit_rot_detector>
+\fR
+
+.SH "COPYRIGHT"
+Copyright \(co 2013 Jeff Backus <jeff.backus@gmail.com>
+License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
+.br
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+.SH "AUTHORS"
+
+.nf
+Jeff Backus <jeff.backus@gmail.com>
+.fi
