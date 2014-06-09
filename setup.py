@@ -18,6 +18,11 @@ setup( name='Bit Rot Detector',
        license='GPLv2',
        platforms='win32,linux,osx',
        scripts=['brd'],
-       long_description='To Do',
-       data_files=[('share/man/man1', ['brd.1.gz'])],
+       long_description='BRD is a tool to scan a directory tree and check ' +
+       'each file for corruption caused by damage to the physical storage ' +
+       'medium or by damage from malicious programs. Files are fingerprinted ' +
+       'using the SHA-1 algorithm. File fingerprints, sizes, and modification' +
+       ' times are stored in a SQLite database.',
+       data_files=[('share/man/man1', ['brd.1.gz']),
+                   ('share/doc/brd', ['README', 'LICENSE'])],
    )
