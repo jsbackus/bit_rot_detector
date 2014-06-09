@@ -9,7 +9,7 @@ brd \- Bit Rot Detector
 
 \fBbrd\fR [\fBgeneral-options\fR] \fBscan\fR [\fBscan-options\fR] \fBtarget\fR [\fBtarget ...\fR]
 
-.SS "PROBING THE DATABASE:"
+.SS "LISTING DATABASE CONTENTS:"
 .PP
 
 \fBbrd\fR [\fBgeneral-options\fR] \fBlist\fR [\fBlist-options\fR] \fBtarget\fR [\fBtarget ...\fR]
@@ -19,7 +19,7 @@ brd \- Bit Rot Detector
 
 \fBbrd\fR [\fBgeneral-options\fR] \fBdupe_files\fR [\fBdupe_files-options\fR]
 
-.SS "SEARCHING FOR DUPLICATE TREES:"
+.SS "SEARCHING FOR DUPLICATE SUBTREES:"
 .PP
 
 \fBbrd\fR [\fBgeneral-options\fR] \fBdupe_trees\fR [\fBdupe_trees-options\fR]
@@ -187,6 +187,60 @@ Scans are considered recent for up to, and including, \fIDAYS\fR days. The
 default value is 30 days. See \fB--skip-recent\fR for info on skipping recently
 scanned directories and their contents.
 
+.SS "LISTING OPTIONS"
+.PP
+The following options are available with the \fBlist\fR subcommand:
+.TP
+\fB--use-root \fIROOT_NAME\fB\fR
+Strips the path information from all targets and uses the specified \fIROOT_NAME\fR
+instead, when interacting with the database.
+.TP
+\fB--root-prefix \fIPREFIX\fB\fR
+Appends the specified \fIPREFIX\fR to each target when interacting with the 
+database useful for only scanning a subtree as opposed to the entire tree.
+.TP
+\fB-m,--minimal\R
+When displaying information on directory targets, only directory contents are
+displayed.
+.TP
+\fB-e,--expanded\R
+Displays additional information for directory targets.
+
+.SS "DUPLICATE FILES OPTIONS"
+.PP
+The following options are available with the \fBdupe_files\fR subcommand:
+.TP
+\fB-o,--output \fIFILENAME\fB\fR
+Writes the list of duplicate files to the specified file name. Useful when
+\fB--verbose\fR or \fB--debug\fR are used.
+
+.SS "DUPLICATE SUBTREES OPTIONS"
+.PP
+The following options are available with the \fBdupe_trees\fR subcommand:
+.TP
+\fB-o,--output \fIFILENAME\fB\fR
+Writes the list of duplicate files to the specified file name. Useful when
+\fB--verbose\fR or \fB--debug\fR are used.
+.TP
+\fB--nofilefp\fR
+When generating the fingerprint for a directory, do not include  the 
+fingerprints of files associated with it.
+.TP
+\fB--nofilename\fR
+When generating the fingerprint for a directory, do not include the file names
+of files associated with it.
+.TP
+\fB--nosubdirfp\fR
+When generating the fingerprint for a directory, do not include the fingerprints
+of subdirectories.
+.TP
+\fB--nosubdirname\fR
+When generating the fingerprint for a directory, do not include the names of
+subdirectories.
+.TP
+\fB--nodirname\fR
+When generating the fingerprint for a directory, do not include the directory's
+name.
 
 .\".SH "SEE ALSO"
 .\".nf
