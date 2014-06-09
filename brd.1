@@ -48,7 +48,7 @@ brd \- Bit Rot Detector
 .SS "scan-options"
 .PP
 
- [\fB-h\fR] [\fB--use-root [\fIROOT NAME\fR]\fR] 
+ [\fB-h\fR] [\fB--use-root [\fIROOT_NAME\fR]\fR] 
  [\fB--root-prefix [\fIPREFIX\fR]\fR]\fR] [\fB-p,--prune\fR] 
  [\fB-P,--progress\fR] [\fB--check-only\fR] [\fB--dry-run\fR]
  [\fB-s,--skip-recent\fR] [\fB--expr [\fIDAYS\fR]\fR]
@@ -56,7 +56,7 @@ brd \- Bit Rot Detector
 .SS "list-options"
 .PP
 
- [\fB-h\fR] [\fB--use-root [\fIROOT NAME\fR]\fR] [\fB-m,--minimal\fR]
+ [\fB-h\fR] [\fB--use-root [\fIROOT_NAME\fR]\fR] [\fB-m,--minimal\fR]
  [\fB--root-prefix [\fIPREFIX\fR]\fR]\fR] [\fB-e,--expanded\fR] 
 
 
@@ -76,12 +76,12 @@ brd \- Bit Rot Detector
 .PP
 
  [\fB-h\fR] [\fB-o,--output [\fIFILENAME\fB]\fR]
- [\fB--use-root [\fIROOT NAME\fR]\fR]\fR] [\fB--root-prefix [\fIPREFIX\fR]\fR]
+ [\fB--use-root [\fIROOT_NAME\fR]\fR]\fR] [\fB--root-prefix [\fIPREFIX\fR]\fR]
 
 .SS "rm-options"
 .PP
 
- [\fB-h\fR] [\fB--use-root [\fIROOT NAME\fR]\fR]
+ [\fB-h\fR] [\fB--use-root [\fIROOT_NAME\fR]\fR]
  [\fB--root-prefix [\fIPREFIX\fR]\fR]\fR] [\fB--dry-run\fR] 
 	
 .SS "checkdb-options"
@@ -91,7 +91,7 @@ brd \- Bit Rot Detector
 
 .SH "DESCRIPTION"
 .PP
-bit_rot_detector, or \fBbrd\fR, is a tool to scan a directory tree and check each file
+Bit Rot Detector, or \fBbrd\fR, is a tool to scan a directory tree and check each file
 for corruption caused by damage to the physical storage medium or by damage from
 malicious programs. Files are fingerprinted using the SHA-1 algorithm. File
 fingerprints, sizes, and modification times are stored in a SQLite database.
@@ -134,13 +134,58 @@ See the \fBdupe_files\fR, \fBdupe_trees\fR, and \fBdiff\fR subcommands for detai
 These options can be used in all the different modes.
 .TP
 \fB-h, --help\fR
-Display the command-line help.
+Display the command-line help. When specified after a subcommand name, 
+subcommand-specific help will be displayed.
 .TP
 \fB--version\fR
 Displays script version number and quits.
 .TP
 \fB-l,--log \fIFILENAME\fB\fR
 Logs output to the specified file instead of the console.
+.TP
+\fB-v,--verbose\fR
+Enables additional messages to screen and/or log file.
+.TP
+\fB-d,--debug\fR
+Enables debug messages to screen and/or log file.
+.TP
+\fB--db \fIFILENAME\fB\fR
+Specifies the name of the database to use. Defaults to "./brd.db"
+
+.SS "SCANNING OPTIONS"
+.PP
+The following options are available with the \fBscan\fR subcommand:
+.TP
+\fB--use-root \fIROOT_NAME\fB\fR
+Strips the path information from all targets and uses the specified \fIROOT_NAME\fR
+instead, when interacting with the database.
+.TP
+\fB--root-prefix \fIPREFIX\fB\fR
+Appends the specified \fIPREFIX\fR to each target when interacting with the 
+database useful for only scanning a subtree as opposed to the entire tree.
+.TP
+\fB-p,--prune\fR
+Removes all records for files and directories that no longer exist. If this
+option is not specified, missing files and directories will generate a warning. 
+With this option, missing items will be noted only if \fB--verbose\fR is used.
+.TP
+\fB-P,--progress\fR
+Displays a progress indicator.
+.TP
+\fB--check-only\fR
+Behaves like normal, except that no changes are committed to the database.
+.TP
+\fB--dry-run\fR
+This command is a synonym for \fB--check-only\fR.
+.TP
+\fB-s,--skip-recent\fR
+Skips recently scanned directories and their contents. Default cut-off is 30
+days. See \fB--expr\fR for how to specify the cut-off.
+.TP
+\fB--expr \fIDAYS\fB\fR
+Scans are considered recent for up to, and including, \fIDAYS\fR days. The
+default value is 30 days. See \fB--skip-recent\fR for info on skipping recently
+scanned directories and their contents.
 
 
 .\".SH "SEE ALSO"
