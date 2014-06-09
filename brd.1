@@ -219,7 +219,7 @@ Writes the list of duplicate files to the specified file name. Useful when
 The following options are available with the \fBdupe_trees\fR subcommand:
 .TP
 \fB-o,--output \fIFILENAME\fB\fR
-Writes the list of duplicate files to the specified file name. Useful when
+Writes the list of duplicate subtrees to the specified file name. Useful when
 \fB--verbose\fR or \fB--debug\fR are used.
 .TP
 \fB--nofilefp\fR
@@ -241,6 +241,50 @@ subdirectories.
 \fB--nodirname\fR
 When generating the fingerprint for a directory, do not include the directory's
 name.
+
+.SS "DIFF OPTIONS"
+.PP
+The following options are available with the \fBdiff\fR subcommand:
+.TP
+\fB-o,--output \fIFILENAME\fB\fR
+Writes the results to the specified file name. Useful when
+\fB--verbose\fR or \fB--debug\fR are used.
+.TP
+\fB--use-root \fIROOT_NAME\fB\fR
+Strips the path information from all targets and uses the specified \fIROOT_NAME\fR
+instead, when interacting with the database.
+.TP
+\fB--root-prefix \fIPREFIX\fB\fR
+Appends the specified \fIPREFIX\fR to each target when interacting with the 
+database useful for only scanning a subtree as opposed to the entire tree.
+
+.SS "REMOVAL OPTIONS"
+.PP
+The following options are available with the \fBrm\fR subcommand:
+.TP
+\fB--use-root \fIROOT_NAME\fB\fR
+Strips the path information from all targets and uses the specified \fIROOT_NAME\fR
+instead, when interacting with the database.
+.TP
+\fB--root-prefix \fIPREFIX\fB\fR
+Appends the specified \fIPREFIX\fR to each target when interacting with the 
+database useful for only scanning a subtree as opposed to the entire tree.
+.TP
+\fB--dry-run\fR
+Behaves like normal, except that no changes are committed to the database.
+
+.SS "DATABASE CHECK OPTIONS"
+.PP
+The following options are available with the \fBcheckdb\fR subcommand:
+.TP
+\fB-P,--progress\fR
+Displays a progress indicator.
+.TP
+\fB--check-only\fR
+Behaves like normal, except that no changes are committed to the database.
+.TP
+\fB--dry-run\fR
+This command is a synonym for \fB--check-only\fR.
 
 .\".SH "SEE ALSO"
 .\".nf
