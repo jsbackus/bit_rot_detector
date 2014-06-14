@@ -231,7 +231,8 @@ def parse_args():
     list_mode.add_argument('-m', '--minimal', action='store_true',
                            help="Display only directory contents.")
     list_mode.add_argument('target', nargs='*', default='',
-                           help='Entry to list. Format: <root>/<path>')
+                           help='Entry/entries to list, or lists roots if none'
+                           + ' specified. Format: <root>/<path>')
 
     # rm subparser
     rm_mode = subparsers.add_parser('rm', help='Recursively removes items ' +
