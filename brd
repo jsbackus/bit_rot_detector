@@ -1752,112 +1752,127 @@ def list_db(db_conn, target):
     # Get DB cursor object
     cursor = db_conn.cursor()
 
-    # Try to locate the target
-    target_info = resolve_target(target, cursor)
-
-    if (target_info == None) or (target_info['dir_id'] == None):
-        print(target + " is not in database." + os.linesep)
-        return 0
-        
     count = 0
 
-    # Try the file table
-    if (target_info['file_id'] != None):
-        if not cmd_args.minimal:
-            print("Files matching '" + target + "':" + os.linesep)
+    if cmd_args.minimal:
+        indent = ''
+    else:
+        indent = ' ' * 4
 
-        headers = ("Name", "ID", "Last Modified", "Fingerprint", "Size")
-        cursor.execute("SELECT Name,File_ID,LastModified,Fingerprint,Size " + 
-                       "FROM '" + table_names['files'] + 
-                       "' WHERE Parent_ID=? AND " +
-                       "Name GLOB ?", 
-                       (target_info['dir_id'], target_info['file_name']) )
-
-        if cmd_args.minimal:
-            indent = ''
-        else:
-            indent = ' ' * 4
-
-        for row in cursor.fetchall():
-            if cmd_args.minimal:
-                # Print name only
-                print(row[0])
-            else:
-                # Print name
-                print(row[0] + ':')
-
-                # Print ID
-                print(indent + 'ID: ' + str(row[1]))
-
-                # Print date last modified
-                if row[2] != None:
-                    print(indent + 'Last Modified: ' + \
-                        str(datetime.datetime.fromtimestamp(float(row[2]))))
-                else:
-                    print(indent + 'Last Modified: ')
-
-                # Print Fingerprint
-                print(indent + 'Fingerprint: 0x' + row[3])
-
-                # Print Size
-                print(indent + 'Size: ' + str(row[4]) + ' bytes')
-            count += 1
-    elif (target_info['dir_id'] != None):
-        # Retrieve all children
-        parent_id = target_info['dir_id']
-        if (not cmd_args.minimal) or (1 < len(cmd_args.target)):
-            print(target + ":")
+    # If target is None, then print list of roots.
+    if target == None:
         if cmd_args.expanded:
-            indent = ' ' * 8
-            print( (' ' * 4) + '[INFO]')
-            cursor.execute("SELECT Parent_ID,LastChecked FROM '" + 
-                           table_names['dirs'] + "' WHERE Path_ID=?", 
-                           (parent_id,))
-            row = cursor.fetchone()
-
-            # Dir ID
-            print(indent + 'ID: ' + str(parent_id))
-            
-            # Parent ID
-            print(indent + 'Parent ID: ' + str(row[0]))
-            
-            # Date Last Checked:
-            print(indent + 'Last Checked: ' + str(row[1]))
-        elif cmd_args.minimal:
-            indent = ''
-        else:
-            indent = ' ' * 4
-
-        # subdirs
-        if cmd_args.expanded:
-            print( (' ' * 4) + '[Subdirectories]')
+            print( '[Roots]')
         cursor.execute("SELECT Name,Path_ID FROM '" + 
                        table_names['dirs'] + "' WHERE Parent_ID=?", 
-                       (parent_id,) )
+                       (-1,) )
         for row in cursor.fetchall():
             if cmd_args.expanded:
-                print(indent + os.path.join(row[0],'') + ' (' + str(row[1]) + 
-                      ')')
+                print(indent + os.path.join(row[0],'') + ' (' + str(row[1])
+                      + ')')
             else:
                 print(indent + os.path.join(row[0],''))
             count += 1
-        # files
-        if cmd_args.expanded:
-            print( (' ' * 4) + '[Files]')
-        cursor.execute("SELECT Name,File_ID FROM '" + 
-                       table_names['files'] + "' WHERE Parent_ID=?", 
-                       (parent_id,) )
-        for row in cursor.fetchall():
-            if cmd_args.expanded:
-                print(indent + row[0] + ' (' + str(row[1]) + ')')
-            else:
-                print(indent + row[0])
-            count += 1
+    else:
+        # Otherwise, try to locate the target
+        target_info = resolve_target(target, cursor)
+        
+        if (target_info == None) or (target_info['dir_id'] == None):
+            print(target + " is not in database." + os.linesep)
+            return 0
+            
+        # Try the file table
+        if (target_info['file_id'] != None):
+            if not cmd_args.minimal:
+                print("Files matching '" + target + "':" + os.linesep)
 
-        # If in minimal mode and there are multiple targets, print a blank line.
-        if cmd_args.minimal and (1 < len(cmd_args.target)):
-            print()
-   
+            headers = ("Name", "ID", "Last Modified", "Fingerprint", "Size")
+            cursor.execute("SELECT Name,File_ID,LastModified,Fingerprint,Size "
+                           + "FROM '" + table_names['files'] + 
+                           "' WHERE Parent_ID=? AND " +
+                           "Name GLOB ?", 
+                           (target_info['dir_id'], target_info['file_name']) )
+
+            for row in cursor.fetchall():
+                if cmd_args.minimal:
+                    # Print name only
+                    print(row[0])
+                else:
+                    # Print name
+                    print(row[0] + ':')
+
+                    # Print ID
+                    print(indent + 'ID: ' + str(row[1]))
+
+                    # Print date last modified
+                    if row[2] != None:
+                        print(indent + 'Last Modified: ' + \
+                            str(datetime.datetime.fromtimestamp(float(row[2]))))
+                    else:
+                        print(indent + 'Last Modified: ')
+
+                    # Print Fingerprint
+                    print(indent + 'Fingerprint: 0x' + row[3])
+
+                    # Print Size
+                    print(indent + 'Size: ' + str(row[4]) + ' bytes')
+                count += 1
+        elif (target_info['dir_id'] != None):
+            # Retrieve all children
+            parent_id = target_info['dir_id']
+            if (not cmd_args.minimal) or (1 < len(cmd_args.target)):
+                print(target + ":")
+            if cmd_args.expanded:
+                indent = ' ' * 8
+                print( (' ' * 4) + '[INFO]')
+                cursor.execute("SELECT Parent_ID,LastChecked FROM '" + 
+                               table_names['dirs'] + "' WHERE Path_ID=?", 
+                               (parent_id,))
+                row = cursor.fetchone()
+
+                # Dir ID
+                print(indent + 'ID: ' + str(parent_id))
+
+                # Parent ID
+                print(indent + 'Parent ID: ' + str(row[0]))
+
+                # Date Last Checked:
+                print(indent + 'Last Checked: ' + str(row[1]))
+            elif cmd_args.minimal:
+                indent = ''
+            else:
+                indent = ' ' * 4
+
+            # subdirs
+            if cmd_args.expanded:
+                print( (' ' * 4) + '[Subdirectories]')
+            cursor.execute("SELECT Name,Path_ID FROM '" + 
+                           table_names['dirs'] + "' WHERE Parent_ID=?", 
+                           (parent_id,) )
+            for row in cursor.fetchall():
+                if cmd_args.expanded:
+                    print(indent + os.path.join(row[0],'') + ' (' + str(row[1])
+                          + ')')
+                else:
+                    print(indent + os.path.join(row[0],''))
+                count += 1
+            # files
+            if cmd_args.expanded:
+                print( (' ' * 4) + '[Files]')
+            cursor.execute("SELECT Name,File_ID FROM '" + 
+                           table_names['files'] + "' WHERE Parent_ID=?", 
+                           (parent_id,) )
+            for row in cursor.fetchall():
+                if cmd_args.expanded:
+                    print(indent + row[0] + ' (' + str(row[1]) + ')')
+                else:
+                    print(indent + row[0])
+                count += 1
+
+            # If in minimal mode and there are multiple targets, print a blank 
+            # line.
+            if cmd_args.minimal and (1 < len(cmd_args.target)):
+                print()
 
     if not cmd_args.minimal:
         print(os.linesep + str(count) + " entries listed." + os.linesep)
@@ -2002,8 +2017,11 @@ if __name__ == '__main__':
         elif cmd_args.subcommand == 'list':
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
-                for target in cmd_args.target:
-                    list_db(db_conn, target)
+                if( 0 < len(cmd_args.target) ):
+                    for target in cmd_args.target:
+                        list_db(db_conn, target)
+                else:
+                    list_db(db_conn, None)
 
         if cmd_args.subcommand == 'rm':
             ok_to_prune = not cmd_args.dry_run
