@@ -718,15 +718,6 @@ def scan_target(target, db_conn):
     # Attempt to resolve the target
     target_info = resolve_target(target, cursor, True)
 
-    # If nothing returned, assume the specified target is a new root.
-#    if target_info == None:
-#        root_info = get_root_from_db(cursor, target)
- #       return crawl_tree(target, root_info[0], root_info[1], cursor)
- #   else:
-        # Otherwise, start crawling in the specified subtree
-        #cursor.execute("SELECT LastChecked FROM '" + table_names['dirs'] + 
-        #               "' WHERE Path_ID=?", (target_info['dir_id'],))
-        #row = cursor.fetchone()
     return crawl_tree(target, target_info, cursor)
         
 def crawl_tree(target, target_info, cursor):
@@ -796,22 +787,6 @@ def crawl_tree(target, target_info, cursor):
                 # Generate full path to entry
                 entry_full_name = os.path.join(node[0], entry)
                 
-                # force item name to unicode. First try to convert from
-                # default encoding. If that doesn't work, try forcing to
-                # cp437, which is the default Windows encoding.
-                # try:
-                #     entry = entry.encode('utf8')
-                # except UnicodeDecodeError as e1:
-                #     try:
-                #         entry = entry.decode('cp437')
-                #     except UnicodeDecodeError as e2:
-                #         logging.warning("Attempts to encode file/dir name '" +
-                #                         entry + "' in UTF-8 generated errors: ")
-                #         logging.warning("\tFrom default encoding: " + 
-                #                         e1.message)
-                #         logging.warning("\tFrom cp437 : " + e2.message)
-                #         continue
-
                 # Grab entry filesystem stats
                 try:
                     entry_stat = os.stat(entry_full_name)
