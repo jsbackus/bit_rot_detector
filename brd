@@ -2026,7 +2026,10 @@ if __name__ == '__main__':
             with open_db(cmd_args.db) as db_conn:
                 if( 0 < len(cmd_args.target) ):
                     for target in cmd_args.target:
-                        list_db(db_conn, target)
+                        if( target != '*' ):
+                            list_db(db_conn, target)
+                        else:
+                            list_db(db_conn, None)
                 else:
                     list_db(db_conn, None)
 

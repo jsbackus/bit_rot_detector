@@ -338,6 +338,12 @@ class TestList(BrdUnitBase):
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
+        # Attempt to list contents with '*'
+        scr_out = subprocess.check_output([self.script_name, 'list', '*'], 
+                                          universal_newlines=True)
+        # Verify output
+        self.assertEqual( scr_out, exp_out )
+
         # Attempt to list contents with -e
         scr_out = subprocess.check_output([self.script_name, 'list', 
                                            '-e'], 
