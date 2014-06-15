@@ -1762,7 +1762,7 @@ def list_db(db_conn, target):
 
     # If target is None, then print list of roots.
     if target == None:
-        if cmd_args.expanded:
+        if not cmd_args.minimal:
             print( '[Roots]')
         cursor.execute("SELECT Name,Path_ID FROM '" + 
                        table_names['dirs'] + "' WHERE Parent_ID=?", 

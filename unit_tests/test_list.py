@@ -306,6 +306,52 @@ class TestList(BrdUnitBase):
         # Verify output
         self.assertEqual( scr_out, exp_out )
 
+    def test_roots(self):
+        """Tests list subcommand with out any targets.
+        """
+
+        mod_time = datetime.datetime.fromtimestamp(int(float(time.time())))
+        check_time = mod_time
+        exp_out = os.linesep.join( ( '[Roots]', '    rootA/', '    rootB/',
+                                     '', '2 entries listed.', '', '' ) )
+        exp_expand_out = os.linesep.join( ( '[Roots]', '    rootA/ (1)', 
+                                            '    rootB/ (6)',
+                                            '', '2 entries listed.', '', '' ) )
+        exp_min_out = os.linesep.join( ( 'rootA/', 'rootB/', '' ) )
+
+        # Call open_db, which should create db and its tables
+        self.open_db( self.default_db, False )
+
+        # Populate the database with schema 1
+        self.populate_db_from_tree( 
+            self.get_schema_1( mod_time, check_time ) )
+        # Append another schema 1 with a new root name
+        self.populate_db_from_tree( 
+            self.get_schema_1( mod_time, check_time, 
+                               root_name = 'rootB', first_file_id=6,
+                               first_dir_id=6) )
+        self.conn.close()
+
+        # Attempt to list contents
+        scr_out = subprocess.check_output([self.script_name, 'list'], 
+                                          universal_newlines=True)
+        # Verify output
+        self.assertEqual( scr_out, exp_out )
+
+        # Attempt to list contents with -e
+        scr_out = subprocess.check_output([self.script_name, 'list', 
+                                           '-e'], 
+                                          universal_newlines=True)
+        # Verify output
+        self.assertEqual( scr_out, exp_expand_out )
+
+        # Attempt to list contents with -m
+        scr_out = subprocess.check_output([self.script_name, 'list', 
+                                           '-m'], 
+                                          universal_newlines=True)
+        # Verify output
+        self.assertEqual( scr_out, exp_min_out )
+
 
 # Allow unit test to run on its own
 if __name__ == '__main__':
