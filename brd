@@ -719,7 +719,22 @@ def scan_target(target, db_conn):
     target_info = resolve_target(target, cursor, True)
 
     return crawl_tree(target, target_info, cursor)
+
+def gen_file_stats_dict():
+    """Returns a properly formated file_stats dictionary.
+    """
+    # Probably should implement as a class, but meh.
+    return { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
+             'missing' : 0, 'skipped' : 0, 'bytes' : 0, 'time' : 0.0 }
         
+def gen_dir_stats_dict():
+    """Returns a properly formated dir_stats dictionary.
+    """
+    # Probably should implement as a class, but meh.
+    return { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
+             'missing' : 0, 'skipped' : 0}
+
+
 def crawl_tree(target, target_info, cursor):
     """Crawls the specified directory, processing all files that it finds.
     Returns 0 if successful or 1 if error.
@@ -728,11 +743,8 @@ def crawl_tree(target, target_info, cursor):
     # Build timedelta object used to determine if entities have expired.
     expr_check = datetime.timedelta(cmd_args.expr)
 
-    # Order: (added, good, updated, bad, missing, skipped)
-    file_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
-                   'missing' : 0, 'skipped' : 0, 'bytes' : 0, 'time' : 0.0 }
-    dir_stats = { 'added' : 0, 'good' : 0, 'updated' : 0, 'bad' : 0, 
-                  'missing' : 0, 'skipped' : 0}
+    file_stats = gen_file_stats_dict()
+    dir_stats = gen_dir_stats_dict()
 
     # Make sure target is a directory
     if target_info['file_id'] == None:
@@ -872,9 +884,18 @@ def crawl_tree(target, target_info, cursor):
     # Commit
     db_conn.commit()
 
-    # Print stats!
+    logging.info('Finished processing root \'' + target + '\'.')
+
+
+    # Return list of error code and stats infos
+    return [error_flag, file_stats, dir_stats]
+
+def print_scan_stats(file_stats, dir_stats):
+    """Prints file and dir scan statistics.
+    """
+
+    logging.info('Scan Results:')
     action_names = ('added', 'good', 'updated', 'BAD', 'MISSING', 'skipped')
-    logging.info('Finished processing root \'' + target + '\': ')
     logging.info('    Files:')
     for action in action_names:
         logging.info('      %s: %s', action, file_stats[action.lower()])
@@ -896,10 +917,6 @@ def crawl_tree(target, target_info, cursor):
             speed_info += '{:03.2f}'.format(avg_speed / 1e6) + 'B/s'
 
         logging.info(speed_info)
-                 
-
-    # Return error code
-    return error_flag
 
 def open_db(db_url):
     """Function to open the specified SQLite database and return a Connection
@@ -1968,10 +1985,24 @@ if __name__ == '__main__':
                 ok_to_prune = False
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
+                file_stats = gen_file_stats_dict()
+                dir_stats = gen_dir_stats_dict()
+                
                 # Scan each specified root.
                 for target in cmd_args.target:
-                    if (scan_target(target, db_conn) != 0):
+                    # Scan target
+                    result = scan_target(target, db_conn)
+                    # Update stats
+                    file_stats = add_dicts(file_stats, result[1])
+                    dir_stats = add_dicts(dir_stats, result[2])
+                    # Check for interrupt and break if appropriate
+                    if (result[0] != 0):
                         break
+
+            # Dump stats, if appropriate
+            print_scan_stats( file_stats, dir_stats )
+
+            # Add a blank line if using progress indicator
             if cmd_args.progress:
                 sys.stdout.write('\r\n')
 
