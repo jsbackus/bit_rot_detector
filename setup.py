@@ -34,7 +34,7 @@ class my_build(build):
 cmdclass = {}
 cmdclass['build'] = my_build
 
-setup( name='brd',
+setup( name='bit_rot_detector',
        version='1',
        description='Tool for checking files for damage due to aging.',
        author='Jeff Backus',
