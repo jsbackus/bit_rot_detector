@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
 
 from distutils.core import setup, Extension
+from distutils.command.build import build
 import gzip
 
-# Force Gzip of the man page
-# See gzip module
-with open('brd.1', 'rb') as fin:
-    with gzip.open('brd.1.gz', 'wb') as fout:
-        fout.writelines( fin )
+class my_build(build):
+    def run(self):
+        # Gzip the man page
+        # See gzip module
+        with open('brd.1', 'rb') as fin:
+            with gzip.open('brd.1.gz', 'wb') as fout:
+                fout.writelines( fin )
+        
+        # Run normal build
+        build.run(self)
 
-setup( name='Bit Rot Detector',
+cmdclass = {}
+cmdclass['build'] = my_build
+
+setup( name='brd',
        version='1',
        description='Tool for checking files for damage due to aging.',
        author='Jeff Backus',
@@ -25,4 +34,5 @@ setup( name='Bit Rot Detector',
        ' times are stored in a SQLite database.',
        data_files=[('share/man/man1', ['brd.1.gz']),
                    ('share/doc/brd', ['README', 'LICENSE'])],
+       cmdclass=cmdclass,
    )
