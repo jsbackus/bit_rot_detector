@@ -49,6 +49,6 @@ setup( name='bit_rot_detector',
        'using the SHA-1 algorithm. File fingerprints, sizes, and modification' +
        ' times are stored in a SQLite database.',
        data_files=[('share/man/man1', ['brd.1.gz']),
-                   ('share/doc/brd', ['README', 'LICENSE'])],
+                   ('share/doc/bit_rot_detector', ['README', 'LICENSE'])],
        cmdclass=cmdclass,
    )
