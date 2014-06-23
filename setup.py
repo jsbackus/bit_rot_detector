@@ -39,11 +39,11 @@ setup( name='brd',
        description='Tool for checking files for damage due to aging.',
        author='Jeff Backus',
        author_email='jeff.backus@gmail.com',
-       url='http://github.com/jsbackus/bit_rot_detector',
+       url='http://github.com/jsbackus/brd',
        license='GPLv2',
        platforms='win32,linux,osx',
        scripts=['brd'],
-       long_description='BRD is a tool to scan a directory tree and check ' +
+       long_description='brd is a tool to scan a directory tree and check ' +
        'each file for corruption caused by damage to the physical storage ' +
        'medium or by damage from malicious programs. Files are fingerprinted ' +
        'using the SHA-1 algorithm. File fingerprints, sizes, and modification' +
