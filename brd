@@ -30,6 +30,7 @@ import time
 import io
 import sys
 import datetime
+import fnmatch
 
 ###########
 # Globals #
@@ -249,6 +250,22 @@ def parse_args():
     rm_mode.add_argument('--dry-run', action='store_true',
                          help='Simulates deleting specified target(s) ' +
                          'without actually deleting anything.' )
+
+    # import subparser
+    import_mode = subparsers.add_parser('import',
+                                        help='Imports data from one or more ' + 
+                                        'databases.')
+    import_mode.add_argument('--root-prefix', default='',
+                             help='Append the specified string to all targets ' +
+                             'when importing to the database.')
+    import_mode.add_argument('--from-root-prefix', default='',
+                             help='Append the specified string to all targets ' +
+                             'imported from the database(s) specified.')
+    import_mode.add_argument('--match', nargs='*', default='',
+                             help='Only import items matching the specified ' +
+                             'glob. Remember to put in quotes!.')
+    import_mode.add_argument('db', nargs='+', default='',
+                           help='Path of database to import')
 
     # Create namespace from command-line
     return parser.parse_args()
@@ -1871,6 +1888,216 @@ def list_db(db_conn, target):
         print(os.linesep + str(count) + " entries listed." + os.linesep)
     return count
 
+def import_db(db_conn, from_db_conn):
+    """Lists all items that have target has a parent or display info on file if
+    target is a file.
+    """
+
+    # Get DB cursor objects
+    to_cursor = db_conn.cursor()
+    from_cursor = from_db_conn.cursor()
+
+    # Find the ID of the root to start importing into.
+    to_parent_id
+# TODO
+
+    # If a from root prefix was specified, use it.
+    target = ''
+    if 0 < len(cmd_args.from_root_prefix):
+        target = cmd_args.from_root_prefix
+
+    # Create a list of nodes to process and populate it with the root.
+    node_list = [ (-1, target, to_parent_id ) ]
+
+    # Start crawling the from database
+    while 0 < len(node_list):
+        tmp_node = node_list.pop()
+        from_parent_id = tmp_node[0]
+        from_parent_path = tmp_node[1]
+        to_parent_id = tmp_node[2]
+        from_cursor.execute("SELECT Path_ID,Name FROM '" + table_names['dirs'] + 
+                            "' WHERE Parent_ID=?", (from_parent_id,))
+
+        tmp_row = from_cursor.fetchone()
+        if tmp_row != None:
+            from_node_id = tmp_row[0]
+            node_name = tmp_row[1]
+
+            # Add this directory to from_parent_path
+            from_parent_path = os.path.join( from_parent_path, node_name )
+
+            # See if this parent is in the target database
+            to_cursor.execute("SELECT Path_ID FROM '" + 
+                              table_names['dirs'] + 
+                              "' WHERE Name=? AND Parent_ID=?", 
+                              (node_name, to_parent_id))
+            tmp_row = to_cursor.fetchone()
+            to_node_id = -1
+            if tmp_row == None:
+                # No corresponding path in target database, so add.
+                # TODO: How about w/ globs?
+                to_node_id = add_dir( node_name, to_parent_id, to_cursor )
+            else:
+                to_node_id = tmp_row[0]
+                
+            # Grab list of items belonging to this parent in the from database.
+            from_cursor.execute("SELECT Name,File_ID,LastModified," +
+                                "Fingerprint,Size FROM '" + 
+                                table_names['files'] + 
+                                "' WHERE Parent_ID=?", (from_node_id,))
+
+            for row in from_cursor.fetchall():
+                file_name = row[0]
+                file_id = row[1]
+                file_date = row[2]
+                file_fp = row[3]
+                file_size = row[4]
+
+                # Check item against glob
+                if fnmatch.fnmatch( os.path.join(from_parent_path, file_name) ):
+                    ## TODO: Handle adding directories?
+
+                    # see if there is a corresponding entry in the "to" db
+                    to_cursor.execute("SELECT File_ID,LastModified," +
+                                      "Fingerprint,Size FROM '" + 
+                                      table_names['files'] + 
+                                      "' WHERE Name=? AND Parent_ID=?", 
+                                      (file_name, from_node_id,))
+
+                    tmp_row = to_cursor.fetchone():
+                    if tmp_row == None:
+                        # No corresponding entry, so add it.
+# TODO: Need to break out mode stuff...
+                        add_file( file_name, file_fp, , , to_cursor )
+
+
+#TODO
+    count = 0
+
+    if cmd_args.minimal:
+        indent = ''
+    else:
+        indent = ' ' * 4
+
+    # If target is None, then print list of roots.
+    if target == None:
+        if not cmd_args.minimal:
+            print( '[Roots]')
+        cursor.execute("SELECT Name,Path_ID FROM '" + 
+                       table_names['dirs'] + "' WHERE Parent_ID=?", 
+                       (-1,) )
+        for row in cursor.fetchall():
+            if cmd_args.expanded:
+                print(indent + os.path.join(row[0],'') + ' (' + str(row[1])
+                      + ')')
+            else:
+                print(indent + os.path.join(row[0],''))
+            count += 1
+    else:
+        # Otherwise, try to locate the target
+        target_info = resolve_target(target, cursor)
+        
+        if (target_info == None) or (target_info['dir_id'] == None):
+            print(target + " is not in database." + os.linesep)
+            return 0
+            
+        # Try the file table
+        if (target_info['file_id'] != None):
+            if not cmd_args.minimal:
+                print("Files matching '" + target + "':" + os.linesep)
+
+            headers = ("Name", "ID", "Last Modified", "Fingerprint", "Size")
+            cursor.execute("SELECT Name,File_ID,LastModified,Fingerprint,Size "
+                           + "FROM '" + table_names['files'] + 
+                           "' WHERE Parent_ID=? AND " +
+                           "Name GLOB ?", 
+                           (target_info['dir_id'], target_info['file_name']) )
+
+            for row in cursor.fetchall():
+                if cmd_args.minimal:
+                    # Print name only
+                    print(row[0])
+                else:
+                    # Print name
+                    print(row[0] + ':')
+
+                    # Print ID
+                    print(indent + 'ID: ' + str(row[1]))
+
+                    # Print date last modified
+                    if row[2] != None:
+                        print(indent + 'Last Modified: ' + \
+                            str(datetime.datetime.fromtimestamp(float(row[2]))))
+                    else:
+                        print(indent + 'Last Modified: ')
+
+                    # Print Fingerprint
+                    print(indent + 'Fingerprint: 0x' + row[3])
+
+                    # Print Size
+                    print(indent + 'Size: ' + str(row[4]) + ' bytes')
+                count += 1
+        elif (target_info['dir_id'] != None):
+            # Retrieve all children
+            parent_id = target_info['dir_id']
+            if (not cmd_args.minimal) or (1 < len(cmd_args.target)):
+                print(target + ":")
+            if cmd_args.expanded:
+                indent = ' ' * 8
+                print( (' ' * 4) + '[INFO]')
+                cursor.execute("SELECT Parent_ID,LastChecked FROM '" + 
+                               table_names['dirs'] + "' WHERE Path_ID=?", 
+                               (parent_id,))
+                row = cursor.fetchone()
+
+                # Dir ID
+                print(indent + 'ID: ' + str(parent_id))
+
+                # Parent ID
+                print(indent + 'Parent ID: ' + str(row[0]))
+
+                # Date Last Checked:
+                print(indent + 'Last Checked: ' + str(row[1]))
+            elif cmd_args.minimal:
+                indent = ''
+            else:
+                indent = ' ' * 4
+
+            # subdirs
+            if cmd_args.expanded:
+                print( (' ' * 4) + '[Subdirectories]')
+            cursor.execute("SELECT Name,Path_ID FROM '" + 
+                           table_names['dirs'] + "' WHERE Parent_ID=?", 
+                           (parent_id,) )
+            for row in cursor.fetchall():
+                if cmd_args.expanded:
+                    print(indent + os.path.join(row[0],'') + ' (' + str(row[1])
+                          + ')')
+                else:
+                    print(indent + os.path.join(row[0],''))
+                count += 1
+            # files
+            if cmd_args.expanded:
+                print( (' ' * 4) + '[Files]')
+            cursor.execute("SELECT Name,File_ID FROM '" + 
+                           table_names['files'] + "' WHERE Parent_ID=?", 
+                           (parent_id,) )
+            for row in cursor.fetchall():
+                if cmd_args.expanded:
+                    print(indent + row[0] + ' (' + str(row[1]) + ')')
+                else:
+                    print(indent + row[0])
+                count += 1
+
+            # If in minimal mode and there are multiple targets, print a blank 
+            # line.
+            if cmd_args.minimal and (1 < len(cmd_args.target)):
+                print()
+
+    if not cmd_args.minimal:
+        print(os.linesep + str(count) + " entries listed." + os.linesep)
+    return count
+
 def write_db_fp(sha1, filename):
     """Helper function to write the specified sha1 to the specified filename.
     """
@@ -2032,6 +2259,14 @@ if __name__ == '__main__':
                             list_db(db_conn, None)
                 else:
                     list_db(db_conn, None)
+
+        elif cmd_args.subcommand == 'import':
+            # Open fingerprint database to import into
+            with open_db(cmd_args.db) as db_conn:
+                if( 0 < len(cmd_args.db) ):
+                    for db in cmd_args.db:
+                        with open_db(db) as from_db_conn:
+                            import_db(db_conn, from_db_conn)
 
         if cmd_args.subcommand == 'rm':
             ok_to_prune = not cmd_args.dry_run
