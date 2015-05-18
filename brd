@@ -500,7 +500,8 @@ def process_file(node, filename, mode, file_db_dict, cursor):
         if not cmd_args.check_only:
             logging.debug('File \'' + fullname + 
                           '\' not in database. Adding...')
-            add_file(filename, fp, mode, node[1], cursor)
+            add_file(filename, fp, mode.st_mtime, mode.st_size, node[1], 
+                     cursor)
         else:
             logging.debug('File \'' + fullname + 
                           '\' not in database. Marking as "added", but ' +
@@ -572,7 +573,7 @@ def get_file_items_from_db(cursor, parent_id):
 
     return ret_val
 
-def add_file(filename, fp, mode, parent_id, cursor):
+def add_file(filename, fp, mod_time, filesize, parent_id, cursor):
     """ Adds the specified file with the specified mode, fingerprint, and
     parent_id to the 'files' table. Returns the new entry's File_ID.
     """
@@ -580,7 +581,7 @@ def add_file(filename, fp, mode, parent_id, cursor):
                    "'(Name, Parent_ID, LastModified, " +
                    "Fingerprint," +
                    " Size) VALUES(?, ?, ?, ?, ?)", 
-                   (filename, parent_id, mode.st_mtime, fp, mode.st_size))
+                   (filename, parent_id, mod_time, fp, filesize))
     ret_val = cursor.lastrowid
     logging.debug("File '%s' with parent %s' added to database with ID = %s",
                   filename, parent_id, str(ret_val))
@@ -1967,8 +1968,8 @@ def import_db(db_conn, from_db_conn):
                     tmp_row = to_cursor.fetchone():
                     if tmp_row == None:
                         # No corresponding entry, so add it.
-# TODO: Need to break out mode stuff...
-                        add_file( file_name, file_fp, , , to_cursor )
+                        add_file( file_name, file_fp, file_date, file_size, 
+                                  to_cursor )
 
 
 #TODO
