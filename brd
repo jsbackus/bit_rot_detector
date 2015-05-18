@@ -1899,8 +1899,11 @@ def import_db(db_conn, from_db_conn):
     from_cursor = from_db_conn.cursor()
 
     # Find the ID of the root to start importing into.
-    to_parent_id
-# TODO
+    to_parent_id = -1
+    if 0 < len(cmd_args.root_prefix):
+        targ_info = resolve_target( cmd_args.root_prefix, to_cursor, False )
+        if targ_info[ 'dir_id' ] != None:
+            to_parent_id = targ_info[ 'dir_id' ]
 
     # If a from root prefix was specified, use it.
     target = ''
