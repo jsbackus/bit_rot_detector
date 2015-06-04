@@ -92,7 +92,7 @@ Released under the GPL v2.
 #############
 # Functions #
 #############
-def parse_args():
+def parse_args( show_help = False ):
     """Sets up the argparse object and attempts to parse the command-line.
     """
     
@@ -266,6 +266,10 @@ def parse_args():
                              'glob. Remember to put in quotes!.')
     import_mode.add_argument('from_db', nargs='+', default='',
                            help='Path of database to import')
+
+    # If show_help is true, force showing of the command-line help
+    if show_help:
+        parser.print_help()
 
     # Create namespace from command-line
     return parser.parse_args()
@@ -2202,7 +2206,7 @@ if __name__ == '__main__':
                         with open_db(db) as from_db_conn:
                             import_db(db_conn, from_db_conn)
 
-        if cmd_args.subcommand == 'rm':
+        elif cmd_args.subcommand == 'rm':
             ok_to_prune = not cmd_args.dry_run
             # Open fingerprint database
             with open_db(cmd_args.db) as db_conn:
@@ -2210,6 +2214,8 @@ if __name__ == '__main__':
 
         elif cmd_args.subcommand == 'checkdb':
             check_db()
+        else:
+            parse_args( True )
 
     except KeyboardInterrupt:
         # Catch here also, in case it was missed earlier.
