@@ -1964,7 +1964,7 @@ def import_db(db_conn, from_db_conn):
                 does_file_match = False
                 if 0 < len(cmd_args.match):
                     glob_idx = 0
-                    while !does_file_match and glob_idx < len(cmd_args.match):
+                    while (not does_file_match) and glob_idx < len(cmd_args.match):
                         if (fnmatch.fnmatch( os.path.join(from_parent_path, 
                                                           file_name),
                                              cmd_args.match[ glob_idx ])):
@@ -1983,7 +1983,7 @@ def import_db(db_conn, from_db_conn):
                                       "' WHERE Name=? AND Parent_ID=?", 
                                       (file_name, to_node_id,))
 
-                    tmp_row = to_cursor.fetchone():
+                    tmp_row = to_cursor.fetchone()
                     if tmp_row == None:
                         # No corresponding entry, so add it.
                         add_file( file_name, file_fp, file_date, file_size, 
@@ -2006,30 +2006,31 @@ def import_db(db_conn, from_db_conn):
                             logging.info("Updating file '%s' in directory " +
                                          "with ID: %s. ", file_name, 
                                          to_node_id )
-                        else if file_date < to_file_date:
-                            # Theirs is later, so keep it
-                            logging.info("File '%s' in target database with " +
-                                         "parent ID %s is " +
-                                         "newer than in import database. " +
-                                         "Skipping...", file_name, to_node_id)
-                        else:
-                            # Files have same modification time, compare 
-                            # fingerprints and sizes
-                            if (to_file_fp != file_fp):
-                                logging.error("File '%s' with parent IDs " +
-                                              "from=%s, to=%s have same mod " +
-                                              "time but fingerprint " +
-                                              "'%s' != '%s'!", file_name, 
-                                              from_node_id, to_node_id, 
-                                              file_fp, to_file_fp)
-
-                            if (to_file_size != file_size):
-                                logging.error("File '%s' with parent IDs " +
-                                              "from=%s, to=%s have same mod " +
-                                              "time but size " +
-                                              "%s bytes != %s bytes!", file_name, 
-                                              from_node_id, to_node_id, 
-                                              file_size, to_file_size)
+                        else: 
+                            if file_date < to_file_date:
+                                # Theirs is later, so keep it
+                                logging.info("File '%s' in target database with " +
+                                             "parent ID %s is " +
+                                             "newer than in import database. " +
+                                             "Skipping...", file_name, to_node_id)
+                            else:
+                                # Files have same modification time, compare 
+                                # fingerprints and sizes
+                                if (to_file_fp != file_fp):
+                                    logging.error("File '%s' with parent IDs " +
+                                                  "from=%s, to=%s have same mod " +
+                                                  "time but fingerprint " +
+                                                  "'%s' != '%s'!", file_name, 
+                                                  from_node_id, to_node_id, 
+                                                  file_fp, to_file_fp)
+                                    
+                                    if (to_file_size != file_size):
+                                        logging.error("File '%s' with parent IDs " +
+                                                      "from=%s, to=%s have same mod " +
+                                                      "time but size " +
+                                                      "%s bytes != %s bytes!", file_name, 
+                                                      from_node_id, to_node_id, 
+                                                      file_size, to_file_size)
     # TODO?
 
 def write_db_fp(sha1, filename):
