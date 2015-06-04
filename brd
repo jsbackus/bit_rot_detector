@@ -264,7 +264,7 @@ def parse_args():
     import_mode.add_argument('--match', nargs='*', default='',
                              help='Only import items matching the specified ' +
                              'glob. Remember to put in quotes!.')
-    import_mode.add_argument('db', nargs='+', default='',
+    import_mode.add_argument('from_db', nargs='+', default='',
                            help='Path of database to import')
 
     # Create namespace from command-line
@@ -1943,7 +1943,7 @@ def import_db(db_conn, from_db_conn):
             if tmp_row == None:
                 # No corresponding path in target database, so add.
                 # TODO: How about w/ globs?
-                to_node_id = add_dir( node_name, to_parent_id, to_cursor )
+                to_node_id = add_dir( node_name, to_parent_id, to_cursor )[0]
             else:
                 to_node_id = tmp_row[0]
                 
@@ -1987,7 +1987,7 @@ def import_db(db_conn, from_db_conn):
                     if tmp_row == None:
                         # No corresponding entry, so add it.
                         add_file( file_name, file_fp, file_date, file_size, 
-                                  to_cursor )
+                                  to_node_id, to_cursor )
                     else:
                         to_file_id = row[0]
                         to_file_date = row[1]
@@ -2006,31 +2006,30 @@ def import_db(db_conn, from_db_conn):
                             logging.info("Updating file '%s' in directory " +
                                          "with ID: %s. ", file_name, 
                                          to_node_id )
-                        else: 
-                            if file_date < to_file_date:
-                                # Theirs is later, so keep it
-                                logging.info("File '%s' in target database with " +
-                                             "parent ID %s is " +
-                                             "newer than in import database. " +
-                                             "Skipping...", file_name, to_node_id)
-                            else:
-                                # Files have same modification time, compare 
-                                # fingerprints and sizes
-                                if (to_file_fp != file_fp):
+                        elif file_date < to_file_date:
+                            # Theirs is later, so keep it
+                            logging.info("File '%s' in target database with " +
+                                         "parent ID %s is " +
+                                         "newer than in import database. " +
+                                         "Skipping...", file_name, to_node_id)
+                        else:
+                            # Files have same modification time, compare 
+                            # fingerprints and sizes
+                            if (to_file_fp != file_fp):
+                                logging.error("File '%s' with parent IDs " +
+                                              "from=%s, to=%s have same mod " +
+                                              "time but fingerprint " +
+                                              "'%s' != '%s'!", file_name, 
+                                              from_node_id, to_node_id, 
+                                              file_fp, to_file_fp)
+                                
+                                if (to_file_size != file_size):
                                     logging.error("File '%s' with parent IDs " +
                                                   "from=%s, to=%s have same mod " +
-                                                  "time but fingerprint " +
-                                                  "'%s' != '%s'!", file_name, 
+                                                  "time but size " +
+                                                  "%s bytes != %s bytes!", file_name, 
                                                   from_node_id, to_node_id, 
-                                                  file_fp, to_file_fp)
-                                    
-                                    if (to_file_size != file_size):
-                                        logging.error("File '%s' with parent IDs " +
-                                                      "from=%s, to=%s have same mod " +
-                                                      "time but size " +
-                                                      "%s bytes != %s bytes!", file_name, 
-                                                      from_node_id, to_node_id, 
-                                                      file_size, to_file_size)
+                                                  file_size, to_file_size)
     # TODO?
 
 def write_db_fp(sha1, filename):
@@ -2198,8 +2197,8 @@ if __name__ == '__main__':
         elif cmd_args.subcommand == 'import':
             # Open fingerprint database to import into
             with open_db(cmd_args.db) as db_conn:
-                if( 0 < len(cmd_args.db) ):
-                    for db in cmd_args.db:
+                if( 0 < len(cmd_args.from_db) ):
+                    for db in cmd_args.from_db:
                         with open_db(db) as from_db_conn:
                             import_db(db_conn, from_db_conn)
 
