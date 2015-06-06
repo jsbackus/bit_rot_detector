@@ -50,6 +50,9 @@ class TestImport(BrdUnitBase):
         check_time = mod_time
         exp_out = ''
 
+        # Add temporary database to list of tmp files
+        self.addTmpFile( import_db )
+
         # Call the default open_db, which should create db and its tables
         self.open_db( self.default_db, False )
 
@@ -58,28 +61,27 @@ class TestImport(BrdUnitBase):
             self.get_schema_1( mod_time, check_time ) )
         self.conn.close()
 
-        # Call the default open_db, which should create db and its tables
+        # Call the open_db on the temporary db, which should create db and its 
+        # tables
         self.open_db( import_db, False )
 
         # Append another schema 1 with a new root name
         self.populate_db_from_tree( 
             self.get_schema_1( mod_time, check_time, 
-                               root_name = 'rootB', first_file_id=6,
+#                               root_name = 'rootB',
+                               first_file_id=6,
                                first_dir_id=6) )
         self.conn.close()
 
         # Import import_db into default db.
-        scr_out = subprocess.check_output([self.script_name, 'import', 
+        scr_out = subprocess.check_output([self.script_name, "-d", 'import', 
                                            import_db], 
                                           stderr=subprocess.STDOUT,
                                           universal_newlines=True)
+        print( scr_out )
 
         # Verify results
         self.assertEqual( scr_out, exp_out )
-
-        # Remove the import database, if it exists
-        if os.path.exists( import_db ):
-            os.unlink( import_db )
 
         
     # def test_identical_files(self):

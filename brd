@@ -1916,6 +1916,12 @@ def import_db(db_conn, from_db_conn):
     target = ''
     if 0 < len(cmd_args.from_root_prefix):
         target = cmd_args.from_root_prefix
+        targ_info = resolve_target( target, from_cursor )
+        if targ_info[ 'dir_id' ] != None:
+            # Make sure it isn't a file
+            if file_id != None:
+                print("ERROR! this is a file!")
+            from_parent_id = targ_info[ 'dir_id' ]
 
     # Create a list of nodes to process and populate it with the root.
     node_list = [ (-1, target, to_parent_id ) ]
@@ -1926,6 +1932,10 @@ def import_db(db_conn, from_db_conn):
         from_parent_id = tmp_node[0]
         from_parent_path = tmp_node[1]
         to_parent_id = tmp_node[2]
+
+        logging.debug("Processing directory '%s', with From id: %s and To " +
+                      "id: %s", from_parent_path, from_parent_id, to_parent_id )
+
         from_cursor.execute("SELECT Path_ID,Name FROM '" + table_names['dirs'] + 
                             "' WHERE Parent_ID=?", (from_parent_id,))
 
@@ -1952,6 +1962,37 @@ def import_db(db_conn, from_db_conn):
                 to_node_id = tmp_row[0]
                 
             # Grab list of items belonging to this parent in the from database.
+            # Directories
+            from_cursor.execute("SELECT Name,Path_ID,LastChecked " +
+                                "FROM '" + 
+                                table_names['dirs'] + 
+                                "' WHERE Parent_ID=?", (from_node_id,))
+
+            for row in from_cursor.fetchall():
+                dir_name = row[0]
+                dir_id = row[1]
+                dir_date = row[2]
+
+                # Check item against glob(s), if specified
+                does_dir_match = False
+                if 0 < len(cmd_args.match):
+                    glob_idx = 0
+                    while (not does_file_match) and glob_idx < len(cmd_args.match):
+                        if (fnmatch.fnmatch( os.path.join(from_parent_path, 
+                                                          dir_name),
+                                             cmd_args.match[ glob_idx ])):
+                            does_dir_match = True
+                        glob_idx += 1
+                else:
+                    does_dir_match = True
+
+                if does_dir_match:
+                    # Add it to the queue
+                    node_list.append( (from_node_id, dir_name, to_parent_id ) )
+                    
+
+
+            # Files
             from_cursor.execute("SELECT Name,File_ID,LastModified," +
                                 "Fingerprint,Size FROM '" + 
                                 table_names['files'] + 
@@ -2000,7 +2041,7 @@ def import_db(db_conn, from_db_conn):
 
                         # Compare the modification times  of the two entries 
                         # and take the latest one.
-                        if to_file_date < file_date:
+                        if float(to_file_date) < float(file_date):
                             # Ours is later, so replace theirs
                             to_cursor.execute("UPDATE '" + table_names['files']
                                               + "' SET LastModified=?, " +
@@ -2034,7 +2075,9 @@ def import_db(db_conn, from_db_conn):
                                                   "%s bytes != %s bytes!", file_name, 
                                                   from_node_id, to_node_id, 
                                                   file_size, to_file_size)
-    # TODO?
+    # Commit changes
+    db_conn.commit()
+
 
 def write_db_fp(sha1, filename):
     """Helper function to write the specified sha1 to the specified filename.

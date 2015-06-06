@@ -77,16 +77,31 @@ class BrdUnitBase(unittest.TestCase):
         # Define default database name
         self.default_db = os.path.basename(self.script_name) + '.db'
 
-        # Remove the database, if it exists
-        if os.path.exists( self.default_db ):
-            os.unlink( self.default_db )
+        # Maintain a list of temporary files to remove and put
+        # default database in list.
+        self.tmp_files = [ self.default_db ]
+
+        # Pre-clean files
+        self.cleanTmpFiles()
 
     def tearDown(self):
         """General cleanup
         """
-        # Remove the database, if it exists
-        if os.path.exists( self.default_db ):
-            os.unlink( self.default_db )
+        # Remove temporary files
+        self.cleanTmpFiles()
+
+    def cleanTmpFiles(self):
+        """Removes all temporary files currently in the list.
+        """
+
+#        for tmp_file in self.tmp_files:
+#            if os.path.exists( tmp_file ):
+#                os.unlink( tmp_file )
+
+    def addTmpFile( self, file_name ):
+        """Adds a temporary file to the list of temp files to remove.
+        """
+        self.tmp_files.append( file_name )
         
     def read_in_chunks(self, file_obj, chunk_size=1024*1024):
         """Generator to read data from the specified file in chunks.
