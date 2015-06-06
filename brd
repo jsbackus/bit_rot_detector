@@ -1924,20 +1924,29 @@ def import_db(db_conn, from_db_conn):
             from_parent_id = targ_info[ 'dir_id' ]
 
     # Create a list of nodes to process and populate it with the root.
-    node_list = [ (-1, target, to_parent_id ) ]
+    node_list = [ (target, -1, '', to_parent_id ) ]
 
     # Start crawling the from database
     while 0 < len(node_list):
         tmp_node = node_list.pop()
-        from_parent_id = tmp_node[0]
-        from_parent_path = tmp_node[1]
-        to_parent_id = tmp_node[2]
+        node_name = tmp_node[0]
+        from_parent_id = tmp_node[1]
+        from_parent_path = tmp_node[2]
+        to_parent_id = tmp_node[3]
 
         logging.debug("Processing directory '%s', with From id: %s and To " +
                       "id: %s", from_parent_path, from_parent_id, to_parent_id )
 
-        from_cursor.execute("SELECT Path_ID,Name FROM '" + table_names['dirs'] + 
-                            "' WHERE Parent_ID=?", (from_parent_id,))
+        if len(node_name) <= 0:
+            from_cursor.execute("SELECT Path_ID,Name FROM '" + 
+                                table_names['dirs'] + 
+                                "' WHERE Parent_ID=?", 
+                                (from_parent_id,))
+        else:
+            from_cursor.execute("SELECT Path_ID,Name FROM '" + 
+                                table_names['dirs'] + 
+                                "' WHERE Parent_ID=? AND Name=?", 
+                                (from_parent_id,node_name))
 
         tmp_row = from_cursor.fetchone()
         if tmp_row != None:
@@ -1988,7 +1997,7 @@ def import_db(db_conn, from_db_conn):
 
                 if does_dir_match:
                     # Add it to the queue
-                    node_list.append( (from_node_id, dir_name, to_parent_id ) )
+                    node_list.append( (dir_name, from_node_id, from_parent_path, to_parent_id ) )
                     
 
 
