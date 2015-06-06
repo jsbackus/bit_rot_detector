@@ -94,9 +94,9 @@ class BrdUnitBase(unittest.TestCase):
         """Removes all temporary files currently in the list.
         """
 
-#        for tmp_file in self.tmp_files:
-#            if os.path.exists( tmp_file ):
-#                os.unlink( tmp_file )
+        for tmp_file in self.tmp_files:
+            if os.path.exists( tmp_file ):
+                os.unlink( tmp_file )
 
     def addTmpFile( self, file_name ):
         """Adds a temporary file to the list of temp files to remove.

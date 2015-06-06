@@ -2051,7 +2051,7 @@ def import_db(db_conn, from_db_conn):
                             logging.info("Updating file '%s' in directory " +
                                          "with ID: %s. ", file_name, 
                                          to_node_id )
-                        elif file_date < to_file_date:
+                        elif float(file_date) < float(to_file_date):
                             # Theirs is later, so keep it
                             logging.info("File '%s' in target database with " +
                                          "parent ID %s is " +
