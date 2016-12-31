@@ -37,7 +37,7 @@ import datetime
 table_names = { 'files': 'fp_files', 'dirs': 'fp_dirs', 
                 'tmp_dirs' : 'tmp_dirs' }
 
-version = 0
+version = 2
 default_db = os.path.basename(sys.argv[0]) + ".db"
 
 help_desc = """
