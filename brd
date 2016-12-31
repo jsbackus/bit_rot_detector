@@ -328,6 +328,20 @@ def serialize_hash_of_lists( hash_of_lists ):
         else:
             break
 
+def sanitize_path(path):
+    """Returns a sanitized version of the specified path suitable for printing,
+    etc."""
+
+    tmpPath = path
+    try:
+        tmpPath = tmpPath.encode('utf8')
+    except UnicodeEncodeError as e:
+        tmpPath = str(path.encode('utf8', 'replace'))
+        logging.warning("Path contains invalid Unicode. Converted to " + tmpPath)
+        path = tmpPath
+
+    return path
+
 def read_in_chunks(file_obj, chunk_size=1024*1024):
     """Generator to read data from the specified file in chunks.
     Default chunk size is 1M.
@@ -348,7 +362,7 @@ def calc_fingerprint(filename, file_size=0):
     if cmd_args.progress:
         bytes_read = 0
         last_line_len = 0
-        prog_fn = os.path.basename(filename)
+        prog_fn = sanitize_path(os.path.basename(filename))
         if 21 < len(prog_fn):
             prog_fn = prog_fn[:9] + '...' + prog_fn[-9:]
         start_time = time.time()
@@ -399,7 +413,7 @@ def process_file(node, filename, mode, file_db_dict, cursor):
     fullname = os.path.join(node[0], filename)
 
     # Log the file
-    logging.info('Processing file \'%s\'', fullname)
+    logging.info('Processing file \'%s\'', sanitize_path(fullname))
     
     # Generate fingerprint
     fp_cpu_time = time.clock()
@@ -559,6 +573,9 @@ def add_file(filename, fp, mode, parent_id, cursor):
     """ Adds the specified file with the specified mode, fingerprint, and
     parent_id to the 'files' table. Returns the new entry's File_ID.
     """
+
+    filename = sanitize_path(filename)
+
     cursor.execute("INSERT INTO '" + table_names['files'] + 
                    "'(Name, Parent_ID, LastModified, " +
                    "Fingerprint," +
@@ -583,6 +600,8 @@ def add_dir(path, parent_id, cursor):
     Returns the new entry's Path_ID.
     """
 
+    path = sanitize_path(path)
+    
     cursor.execute("INSERT INTO '" + table_names['dirs'] + 
                    "'(Name, Parent_ID) VALUES(?, ?)", 
                    (path, str(parent_id)))
@@ -772,7 +791,7 @@ def crawl_tree(target, target_info, cursor):
             node = dir_queue.pop()
 
             # Log the directory that we are processing
-            logging.info("Processing directory '%s'", node[0])
+            logging.info("Processing directory '%s'", sanitize_path(node[0]))
 
             # Figure out if we're skipping the files in this directory
             check_files = True
