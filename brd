@@ -1289,7 +1289,7 @@ def check_dupe_trees(db_conn):
             
             # Add directory name to hash, if appropriate
             if not cmd_args.nodirname and 0 <= dirs_by_id[ dir_id ][ 1 ]:
-                tmp_data = dirs_by_id[ dir_id ][ 0 ].encode('ascii')
+                tmp_data = dirs_by_id[ dir_id ][ 0 ].encode('utf8')
                 logging.debug( "Adding '%s' to hash", tmp_data )
                 dir_fp.update( tmp_data )
 
@@ -1308,11 +1308,11 @@ def check_dupe_trees(db_conn):
                 # Now sort results and add to cypher.
                 for name in sorted( tmp_file_list.keys() ):
                     if not cmd_args.nofilename:
-                        tmp_data = name.encode('ascii')
+                        tmp_data = name.encode('utf8')
                         logging.debug( "Adding '%s' to hash", tmp_data )
                         dir_fp.update( tmp_data )
                     if not cmd_args.nofilefp:
-                        tmp_data =  tmp_file_list[ name ].encode('ascii') 
+                        tmp_data =  tmp_file_list[ name ].encode('utf8')
                         logging.debug( "Adding '%s' to hash", tmp_data )
                         dir_fp.update( tmp_data )
                     
@@ -1330,11 +1330,11 @@ def check_dupe_trees(db_conn):
                 # Now sort results and add to cypher.
                 for name in sorted( tmp_dir_list.keys() ):
                     if not cmd_args.nosubdirname:
-                        tmp_data =  name.encode('ascii') 
+                        tmp_data =  name.encode('utf8')
                         logging.debug( "Adding '%s' to hash", tmp_data )
                         dir_fp.update( tmp_data )
                     if not cmd_args.nosubdirfp:
-                        tmp_data = tmp_dir_list[ name ].encode('ascii') 
+                        tmp_data = tmp_dir_list[ name ].encode('utf8')
                         logging.debug( "Adding '%s' to hash", tmp_data )
                         dir_fp.update( tmp_data )
             
